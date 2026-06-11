@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Christendom Budgeting</title>
-    <link rel="stylesheet" href="style.css?v=20260611-11">
+    <link rel="stylesheet" href="style.css?v=20260611-12">
   </head>
   <body>
     <main class="app-shell">
@@ -114,7 +114,8 @@
             <label>Type<input id="accountType" placeholder="Chequing, Savings, Credit Card"></label>
             <label>Opening Balance<input id="accountOpening" inputmode="decimal" placeholder="0.00"></label>
             <label class="checkbox-row"><input id="accountNetWorth" type="checkbox" checked>Include In Net Worth</label>
-            <button class="primary" type="submit">Add Account</button>
+            <button id="accountSubmitButton" class="primary" type="submit">Add Account</button>
+            <button id="cancelAccountEditButton" class="secondary hidden" type="button">Cancel Edit</button>
           </form>
           <div id="accountsList" class="list"></div>
         </section>
@@ -198,6 +199,6 @@
       </section>
     </main>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
-    <script src="app.js?v=20260611-11"></script>
+    <script src="app.js?v=20260611-12"></script>
   </body>
 </html>

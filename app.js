@@ -10,6 +10,7 @@ const state = {
   mode: "github",
   month: currentMonth(),
   editingTransactionId: null,
+  editingAccountId: null,
   editingCategoryId: null,
   editingDebtId: null,
   dirty: false,
@@ -68,6 +69,8 @@ const els = {
   accountType: document.getElementById("accountType"),
   accountOpening: document.getElementById("accountOpening"),
   accountNetWorth: document.getElementById("accountNetWorth"),
+  accountSubmitButton: document.getElementById("accountSubmitButton"),
+  cancelAccountEditButton: document.getElementById("cancelAccountEditButton"),
   accountsList: document.getElementById("accountsList"),
   categoryForm: document.getElementById("categoryForm"),
   categoryName: document.getElementById("categoryName"),
@@ -1119,7 +1122,10 @@ function renderAccounts() {
       money(balance),
       displayText(account.type) + " - Opening " + money(account.opening_balance),
       balance < 0 ? "negative" : "positive",
-      [{ label: "Delete", action: "delete-account", id: account.id, danger: true }],
+      [
+        { label: "Edit", action: "edit-account", id: account.id },
+        { label: "Delete", action: "delete-account", id: account.id, danger: true },
+      ],
     );
   });
 }
@@ -1534,6 +1540,14 @@ async function deleteDebt(id) {
   await saveAfterChange("Debt deleted. Monthly debt budget updated.");
 }
 
+async function deleteAccount(id) {
+  if (state.editingAccountId === Number(id)) {
+    clearAccountEditMode();
+  }
+  run("DELETE FROM accounts WHERE id = ?", [Number(id)]);
+  await saveAfterChange("Account deleted.");
+}
+
 async function saveAccount(event) {
   event.preventDefault();
   const name = els.accountName.value.trim();
@@ -1541,13 +1555,54 @@ async function saveAccount(event) {
     showStatus("Account name is required.", true);
     return;
   }
+  const values = [
+    name,
+    els.accountType.value.trim() || "Chequing",
+    numberValue(els.accountOpening),
+    els.accountNetWorth.checked ? 1 : 0,
+  ];
+  if (state.editingAccountId) {
+    run(
+      "UPDATE accounts SET name = ?, type = ?, opening_balance = ?, include_in_net_worth = ? WHERE id = ?",
+      values.concat([state.editingAccountId]),
+    );
+    clearAccountEditMode();
+    await saveAfterChange("Account updated.");
+    return;
+  }
   run(
     "INSERT INTO accounts(name, type, opening_balance, include_in_net_worth) VALUES (?, ?, ?, ?)",
-    [name, els.accountType.value.trim() || "Chequing", numberValue(els.accountOpening), els.accountNetWorth.checked ? 1 : 0],
+    values,
   );
   els.accountForm.reset();
   els.accountNetWorth.checked = true;
   await saveAfterChange("Account added.");
+}
+
+function editAccount(id) {
+  const account = one("SELECT * FROM accounts WHERE id = ?", [Number(id)]);
+  if (!account) {
+    return;
+  }
+  state.editingAccountId = Number(id);
+  els.accountName.value = account.name || "";
+  els.accountType.value = account.type || "";
+  els.accountOpening.value = account.opening_balance || "";
+  els.accountNetWorth.checked = Number(account.include_in_net_worth || 0) === 1;
+  els.accountSubmitButton.textContent = "Update Account";
+  els.cancelAccountEditButton.classList.remove("hidden");
+  activateTab("accounts");
+  window.setTimeout(function () {
+    els.accountName.focus();
+  }, 50);
+}
+
+function clearAccountEditMode() {
+  state.editingAccountId = null;
+  els.accountForm.reset();
+  els.accountNetWorth.checked = true;
+  els.accountSubmitButton.textContent = "Add Account";
+  els.cancelAccountEditButton.classList.add("hidden");
 }
 
 async function saveCategory(event) {
@@ -1950,6 +2005,7 @@ function bindEvents() {
   els.accountForm.addEventListener("submit", function (event) {
     saveAccount(event).catch(function (error) { showStatus(error.message, true); });
   });
+  els.cancelAccountEditButton.addEventListener("click", clearAccountEditMode);
   els.categoryForm.addEventListener("submit", function (event) {
     saveCategory(event).catch(function (error) { showStatus(error.message, true); });
   });
@@ -1985,8 +2041,10 @@ function bindEvents() {
       editTransaction(id);
     } else if (action === "delete-transaction" && confirm("Delete this transaction?")) {
       deleteTransaction(id).catch(function (error) { showStatus(error.message, true); });
+    } else if (action === "edit-account") {
+      editAccount(id);
     } else if (action === "delete-account" && confirm("Delete this account and its transactions?")) {
-      deleteById("accounts", id, "Account deleted.").catch(function (error) { showStatus(error.message, true); });
+      deleteAccount(id).catch(function (error) { showStatus(error.message, true); });
     } else if (action === "edit-category") {
       editCategory(id);
     } else if (action === "delete-category" && confirm("Delete this category? Existing transactions become uncategorized.")) {
