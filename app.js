@@ -1052,18 +1052,30 @@ function renderDashboard() {
   });
   clearNode(els.categorySpendList);
   const spending = all(`
-    SELECT COALESCE(c.name, 'Uncategorized') name, SUM(t.amount) amount
+    SELECT COALESCE(c.name, 'Uncategorized') name,
+      COALESCE(SUM(t.amount), 0) amount,
+      COALESCE(b.planned, 0) planned
     FROM transactions t
     LEFT JOIN categories c ON c.id = t.category_id
+    LEFT JOIN budgets b ON b.category_id = c.id AND b.month = ?
     WHERE substr(t.date, 1, 7) = ? AND t.type = 'expense'
-    GROUP BY name
+    GROUP BY name, b.planned
     ORDER BY amount DESC
-  `, [state.month]);
+  `, [state.month, state.month]);
   if (!spending.length) {
     els.categorySpendList.textContent = "No spending this month.";
   }
   spending.forEach(function (row) {
-    addRow(els.categorySpendList, row.name, money(row.amount), "", "negative");
+    const actual = Number(row.amount || 0);
+    const planned = Number(row.planned || 0);
+    const remaining = planned - actual;
+    addRow(
+      els.categorySpendList,
+      row.name,
+      money(actual),
+      "Planned " + money(planned) + " - Remaining " + money(remaining),
+      actual > planned ? "negative" : "positive",
+    );
   });
 }
 
@@ -1178,12 +1190,14 @@ function renderBudgets() {
   }
   allocationRows.forEach(function (budget) {
     const remaining = Number(budget.planned || 0) - Number(budget.actual || 0);
+    const actual = Number(budget.actual || 0);
+    const planned = Number(budget.planned || 0);
     addRow(
       els.budgetsList,
       budget.category_name,
-      money(remaining),
-      "Planned " + money(budget.planned) + " - Actual " + money(budget.actual) + (budget.carry_forward ? " - Carry forward" : ""),
-      remaining < 0 ? "negative" : "positive",
+      money(actual),
+      "Planned " + money(planned) + " - Remaining " + money(remaining) + (budget.carry_forward ? " - Carry forward" : ""),
+      actual > planned ? "negative" : "positive",
       [{ label: "Delete", action: "delete-budget", id: budget.id, danger: true }],
     );
   });
