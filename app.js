@@ -1,7 +1,7 @@
 const DB_FILENAME = "budget.sqlite3";
 const SUPABASE_URL = "https://uhzgrdivbkhqfxgwdzsd.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_KPhJfS-UNgyV5C3v-RVO_A_e0SP96Iy";
-const SUPABASE_BUCKET = "Test";
+const SUPABASE_BUCKET = "budget-files";
 
 const state = {
   SQL: null,
@@ -205,7 +205,7 @@ function budgetStoragePath() {
   if (!state.user || !state.user.id) {
     throw new Error("Log in before opening or saving a budget.");
   }
-  return "Test/" + state.user.id + "/" + DB_FILENAME;
+  return "Budget/" + state.user.id + "/" + DB_FILENAME;
 }
 
 function updateAuthUi() {
