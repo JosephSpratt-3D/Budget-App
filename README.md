@@ -59,8 +59,9 @@ Adding a transaction:
 1. Enter the amount.
 2. Choose expense/income.
 3. Choose account and category.
-4. Optionally add vendor and notes.
-5. Tap `Save Transaction`.
+4. For a debt payment, choose the matching debt in `Linked Debt`.
+5. Optionally add vendor and notes.
+6. Tap `Save Transaction`.
 
 Christendom Budgeting saves the transaction into SQLite and uploads the updated `budget.sqlite3` to GitHub.
 
@@ -74,7 +75,19 @@ Budgeting:
 Debt payments are added to the monthly budget automatically. The app sets the `Debt`
 allocation to the total of all tracked debts' minimum plus extra payments.
 
-The budget is green when every dollar is assigned and red while money is still unallocated or overallocated.
+Budget rows show what has been spent so far, plus the planned and remaining amounts.
+Rows are green when spending is at or under the planned amount and red when spending
+is over plan. The dashboard category spending list shows the same planned and
+remaining details.
+
+The overall budget status is green when every dollar is assigned and red while money
+is still unallocated or overallocated.
+
+Accounts:
+
+1. Open `Accounts`.
+2. Add accounts for chequing, savings, credit cards, cash, or other balances.
+3. Use `Edit` to rename an account, change its type, adjust opening balance, or change whether it counts toward net worth.
 
 Debt tracking:
 
@@ -82,6 +95,7 @@ Debt tracking:
 2. When recording a debt payment transaction, choose the matching debt in `Linked Debt`.
 3. Linked debt expense transactions reduce that debt's tracked balance.
 4. Editing or deleting a linked transaction reverses the old balance impact before applying the new one.
+5. Use `Edit` on a debt to update its balance, linked account, interest rate, or payment amounts.
 
 ## Features
 
@@ -92,11 +106,11 @@ Debt tracking:
 - Vendor suggestions from previous transactions
 - Transaction search
 - CSV import/export
-- Accounts
+- Editable accounts
 - Editable categories
 - Zero-based monthly budgets where expected income must be allocated across categories
 - Category allocation defaults and reset-from-defaults
-- Debts with automatic monthly budget allocations and linked payment transactions
+- Editable debts with automatic monthly budget allocations and linked payment transactions
 - Comprehensive past-month reports for cash flow, savings rate, budget performance, categories, income sources, accounts, and debt payoff
 
 ## Conflict Handling
