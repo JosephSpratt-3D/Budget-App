@@ -11,6 +11,7 @@ const state = {
   month: currentMonth(),
   editingTransactionId: null,
   editingCategoryId: null,
+  editingDebtId: null,
   dirty: false,
   saving: false,
 };
@@ -97,6 +98,8 @@ const els = {
   debtRate: document.getElementById("debtRate"),
   debtMin: document.getElementById("debtMin"),
   debtExtra: document.getElementById("debtExtra"),
+  debtSubmitButton: document.getElementById("debtSubmitButton"),
+  cancelDebtEditButton: document.getElementById("cancelDebtEditButton"),
   debtsList: document.getElementById("debtsList"),
   reportsList: document.getElementById("reportsList"),
   reportMonthInput: document.getElementById("reportMonthInput"),
@@ -1224,7 +1227,10 @@ function renderDebts() {
       money(debt.balance),
       [debt.account, Number(debt.interest_rate || 0) + "%", "Payment " + money(payment), payoffText].filter(Boolean).join(" - "),
       "negative",
-      [{ label: "Delete", action: "delete-debt", id: debt.id, danger: true }],
+      [
+        { label: "Edit", action: "edit-debt", id: debt.id },
+        { label: "Delete", action: "delete-debt", id: debt.id, danger: true },
+      ],
     );
   });
 }
@@ -1506,6 +1512,9 @@ async function deleteTransaction(id) {
 }
 
 async function deleteDebt(id) {
+  if (state.editingDebtId === Number(id)) {
+    clearDebtEditMode();
+  }
   run("DELETE FROM debts WHERE id = ?", [Number(id)]);
   syncDebtBudget(state.month);
   await saveAfterChange("Debt deleted. Monthly debt budget updated.");
@@ -1656,20 +1665,60 @@ async function saveDebt(event) {
     showStatus("Debt name is required.", true);
     return;
   }
+  const values = [
+    els.debtAccount.value ? Number(els.debtAccount.value) : null,
+    name,
+    numberValue(els.debtBalance),
+    numberValue(els.debtRate),
+    numberValue(els.debtMin),
+    numberValue(els.debtExtra),
+  ];
+  if (state.editingDebtId) {
+    run(
+      `UPDATE debts
+       SET account_id = ?, name = ?, balance = ?, interest_rate = ?, minimum_payment = ?, extra_payment = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      values.concat([state.editingDebtId]),
+    );
+    clearDebtEditMode();
+    syncDebtBudget(state.month);
+    await saveAfterChange("Debt updated. Monthly debt budget updated.");
+    return;
+  }
   run(
     "INSERT INTO debts(account_id, name, balance, interest_rate, minimum_payment, extra_payment) VALUES (?, ?, ?, ?, ?, ?)",
-    [
-      els.debtAccount.value ? Number(els.debtAccount.value) : null,
-      name,
-      numberValue(els.debtBalance),
-      numberValue(els.debtRate),
-      numberValue(els.debtMin),
-      numberValue(els.debtExtra),
-    ],
+    values,
   );
   syncDebtBudget(state.month);
   els.debtForm.reset();
   await saveAfterChange("Debt added. Monthly debt budget updated.");
+}
+
+function editDebt(id) {
+  const debt = one("SELECT * FROM debts WHERE id = ?", [Number(id)]);
+  if (!debt) {
+    return;
+  }
+  state.editingDebtId = Number(id);
+  els.debtName.value = debt.name || "";
+  els.debtAccount.value = debt.account_id || "";
+  els.debtBalance.value = debt.balance || "";
+  els.debtRate.value = debt.interest_rate || "";
+  els.debtMin.value = debt.minimum_payment || "";
+  els.debtExtra.value = debt.extra_payment || "";
+  els.debtSubmitButton.textContent = "Update Debt";
+  els.cancelDebtEditButton.classList.remove("hidden");
+  activateTab("debts");
+  window.setTimeout(function () {
+    els.debtName.focus();
+  }, 50);
+}
+
+function clearDebtEditMode() {
+  state.editingDebtId = null;
+  els.debtForm.reset();
+  els.debtSubmitButton.textContent = "Add Debt";
+  els.cancelDebtEditButton.classList.add("hidden");
 }
 
 function exportCsv() {
@@ -1903,6 +1952,7 @@ function bindEvents() {
   els.debtForm.addEventListener("submit", function (event) {
     saveDebt(event).catch(function (error) { showStatus(error.message, true); });
   });
+  els.cancelDebtEditButton.addEventListener("click", clearDebtEditMode);
   els.exportCsvButton.addEventListener("click", exportCsv);
   els.importCsvInput.addEventListener("change", function () {
     const file = els.importCsvInput.files[0];
@@ -1932,6 +1982,8 @@ function bindEvents() {
       deleteById("categories", id, "Category deleted.").catch(function (error) { showStatus(error.message, true); });
     } else if (action === "delete-budget" && confirm("Delete this budget line?")) {
       deleteById("budgets", id, "Budget deleted.").catch(function (error) { showStatus(error.message, true); });
+    } else if (action === "edit-debt") {
+      editDebt(id);
     } else if (action === "delete-debt" && confirm("Delete this debt?")) {
       deleteDebt(id).catch(function (error) { showStatus(error.message, true); });
     }
