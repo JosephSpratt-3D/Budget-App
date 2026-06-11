@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Christendom Budgeting</title>
+    <link rel="stylesheet" href="style.css?v=20260611-8">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>Christendom Budgeting</h1>
+        </div>
+        <button id="syncButton" class="icon-button" type="button">Sync</button>
+      </header>
+
+      <section id="status" class="status" aria-live="polite"></section>
+
+      <section id="setupView" class="panel">
+        <h2>GitHub Database Setup</h2>
+        <p class="muted">This web app opens and saves the real <strong>budget.sqlite3</strong> file in GitHub. Use a private repo and a fine-grained token with Contents read/write.</p>
+        <form id="settingsForm" class="form-grid">
+          <label>Fine-Grained Token<input id="tokenInput" type="password" autocomplete="off" placeholder="github_pat_..." required></label>
+          <button id="loadReposButton" class="secondary" type="button">Load Repositories</button>
+          <label>Repository<select id="repoInput" required></select></label>
+          <label>Branch<select id="branchInput" required></select></label>
+          <button class="primary" type="submit">Open Database</button>
+        </form>
+        <details class="tutorial" open>
+          <summary>New User GitHub Sync Setup</summary>
+          <ol>
+            <li>Create or sign in to a GitHub account.</li>
+            <li>Create a new private repository, for example <strong>christendom-budget-sync</strong>.</li>
+            <li>Create a fine-grained personal access token for only that repository.</li>
+            <li>Give the token <strong>Contents: Read and write</strong> permission.</li>
+            <li>Paste the token here and tap <strong>Load Repositories</strong>.</li>
+            <li>Select the repository from the dropdown.</li>
+            <li>Select the branch, usually <strong>main</strong>.</li>
+            <li>Tap <strong>Open Database</strong>. Christendom Budgeting will save <strong>budget.sqlite3</strong> in the root of that branch.</li>
+          </ol>
+          <p class="muted">Keep the repository private and keep the token limited to this one budget repository.</p>
+        </details>
+      </section>
+
+      <nav id="tabs" class="tabs" aria-label="Budget sections">
+        <button data-tab="add" class="active" type="button">Add</button>
+        <button data-tab="dashboard" type="button">Dashboard</button>
+        <button data-tab="transactions" type="button">Transactions</button>
+        <button data-tab="accounts" type="button">Accounts</button>
+        <button data-tab="categories" type="button">Categories</button>
+        <button data-tab="budgets" type="button">Budgets</button>
+        <button data-tab="debts" type="button">Debts</button>
+        <button data-tab="reports" type="button">Reports</button>
+        <button data-tab="settings" type="button">Settings</button>
+      </nav>
+
+      <section id="addTab" class="tab-page active">
+        <section class="panel entry-panel">
+          <h2>Quick Transaction</h2>
+          <form id="transactionForm" class="transaction-form">
+            <label class="amount-field">Amount<input id="txAmount" inputmode="decimal" placeholder="0.00" required></label>
+            <label>Type<select id="txType"><option value="expense">Expense</option><option value="income">Income</option></select></label>
+            <label>Date<input id="txDate" type="date" required></label>
+            <label>Account<select id="txAccount" required></select></label>
+            <label>Category<select id="txCategory"></select></label>
+            <label>Vendor<input id="txVendor" list="vendorList" autocomplete="off" placeholder="Vendor"></label>
+            <datalist id="vendorList"></datalist>
+            <label class="wide">Notes<textarea id="txNotes" rows="2" placeholder="Notes"></textarea></label>
+            <button class="primary" type="submit">Save Transaction</button>
+          </form>
+        </section>
+      </section>
+
+      <section id="dashboardTab" class="tab-page">
+        <div class="month-row">
+          <label>Month<input id="monthInput" type="month"></label>
+        </div>
+        <div class="stats-grid">
+          <article class="stat"><span>Monthly Income</span><strong id="incomeValue">$0.00</strong></article>
+          <article class="stat"><span>Monthly Spending</span><strong id="spendingValue">$0.00</strong></article>
+          <article class="stat"><span>Savings</span><strong id="savingsValue">$0.00</strong></article>
+          <article class="stat"><span>Budget Remaining</span><strong id="budgetValue">$0.00</strong></article>
+        </div>
+        <section class="panel"><h2>Account Balances</h2><div id="accountBalanceList" class="list"></div></section>
+        <section class="panel"><h2>Category Spending</h2><div id="categorySpendList" class="list"></div></section>
+        <section class="panel"><h2>Net Worth</h2><p id="netWorthValue" class="big-number">$0.00</p></section>
+      </section>
+
+      <section id="transactionsTab" class="tab-page">
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Transactions</h2>
+            <button id="exportCsvButton" class="secondary small" type="button">Export CSV</button>
+          </div>
+          <div class="tool-row">
+            <input id="transactionSearch" placeholder="Search vendor, notes, account, category">
+            <label class="file-button">Import CSV<input id="importCsvInput" type="file" accept=".csv,text/csv"></label>
+          </div>
+          <div id="transactionList" class="list"></div>
+        </section>
+      </section>
+
+      <section id="accountsTab" class="tab-page">
+        <section class="panel">
+          <h2>Accounts</h2>
+          <form id="accountForm" class="form-grid">
+            <label>Name<input id="accountName" required></label>
+            <label>Type<input id="accountType" placeholder="Chequing, Savings, Credit Card"></label>
+            <label>Opening Balance<input id="accountOpening" inputmode="decimal" placeholder="0.00"></label>
+            <label class="checkbox-row"><input id="accountNetWorth" type="checkbox" checked>Include In Net Worth</label>
+            <button class="primary" type="submit">Add Account</button>
+          </form>
+          <div id="accountsList" class="list"></div>
+        </section>
+      </section>
+
+      <section id="categoriesTab" class="tab-page">
+        <section class="panel">
+          <h2>Categories</h2>
+          <form id="categoryForm" class="form-grid">
+            <label>Name<input id="categoryName" required></label>
+            <label>Kind<select id="categoryKind"><option value="expense">Expense</option><option value="income">Income</option></select></label>
+            <label>Default Budget<input id="categoryLimit" inputmode="decimal" placeholder="0.00"></label>
+            <button id="categorySubmitButton" class="primary" type="submit">Add Category</button>
+            <button id="cancelCategoryEditButton" class="secondary hidden" type="button">Cancel Edit</button>
+          </form>
+          <div id="categoriesList" class="list"></div>
+        </section>
+      </section>
+
+      <section id="budgetsTab" class="tab-page">
+        <section class="panel">
+          <h2>Zero-Based Budget</h2>
+          <div class="stats-grid budget-stats">
+            <article class="stat"><span>Expected Income</span><strong id="budgetExpectedValue">$0.00</strong></article>
+            <article class="stat"><span>Allocated</span><strong id="budgetAllocatedValue">$0.00</strong></article>
+            <article class="stat"><span>Left To Allocate</span><strong id="budgetLeftValue">$0.00</strong></article>
+            <article class="stat"><span>Status</span><strong id="budgetStatusValue">Needs Plan</strong></article>
+          </div>
+          <form id="expectedIncomeForm" class="form-grid">
+            <label>Month<input id="expectedIncomeMonth" type="month" required></label>
+            <label>Income Category<select id="expectedIncomeCategory" required></select></label>
+            <label>Expected Income<input id="expectedIncomePlanned" inputmode="decimal" placeholder="0.00" required></label>
+            <button class="primary" type="submit">Save Expected Income</button>
+          </form>
+          <form id="budgetForm" class="form-grid">
+            <label>Month<input id="budgetMonth" type="month" required></label>
+            <label>Allocation Category<select id="budgetCategory" required></select></label>
+            <label>Allocated Amount<input id="budgetPlanned" inputmode="decimal" placeholder="0.00" required></label>
+            <label class="checkbox-row"><input id="budgetCarry" type="checkbox">Carry Forward</label>
+            <button class="primary" type="submit">Save Allocation</button>
+            <button id="resetBudgetDefaultsButton" class="secondary" type="button">Reset Month From Defaults</button>
+          </form>
+          <div id="budgetsList" class="list"></div>
+        </section>
+      </section>
+
+      <section id="debtsTab" class="tab-page">
+        <section class="panel">
+          <h2>Debts</h2>
+          <form id="debtForm" class="form-grid">
+            <label>Name<input id="debtName" required></label>
+            <label>Account<select id="debtAccount"></select></label>
+            <label>Balance<input id="debtBalance" inputmode="decimal" placeholder="0.00"></label>
+            <label>Interest %<input id="debtRate" inputmode="decimal" placeholder="0"></label>
+            <label>Minimum Payment<input id="debtMin" inputmode="decimal" placeholder="0.00"></label>
+            <label>Extra Payment<input id="debtExtra" inputmode="decimal" placeholder="0.00"></label>
+            <button class="primary" type="submit">Add Debt</button>
+          </form>
+          <div id="debtsList" class="list"></div>
+        </section>
+      </section>
+
+      <section id="reportsTab" class="tab-page">
+        <section class="panel">
+          <h2>Reports</h2>
+          <div class="month-row">
+            <label>Report Month<input id="reportMonthInput" type="month"></label>
+          </div>
+          <div id="reportsList" class="list reports-list"></div>
+        </section>
+      </section>
+
+      <section id="settingsTab" class="tab-page">
+        <section class="panel">
+          <h2>Settings</h2>
+          <button id="saveDbButton" class="primary" type="button">Save Database Now</button>
+          <button id="reloadDbButton" class="secondary" type="button">Reload From GitHub</button>
+          <button id="resetButton" class="secondary" type="button">Clear Web Settings</button>
+        </section>
+      </section>
+    </main>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+    <script src="app.js?v=20260611-8"></script>
+  </body>
+</html>
