@@ -60,6 +60,7 @@ const els = {
   netWorthValue: document.getElementById("netWorthValue"),
   accountBalanceList: document.getElementById("accountBalanceList"),
   categorySpendList: document.getElementById("categorySpendList"),
+  transactionMonthInput: document.getElementById("transactionMonthInput"),
   transactionForm: document.getElementById("transactionForm"),
   transactionSubmit: document.querySelector("#transactionForm button[type='submit']"),
   txAmount: document.getElementById("txAmount"),
@@ -124,8 +125,12 @@ const els = {
   cancelExpectedIncomeEditButton: document.getElementById("cancelExpectedIncomeEditButton"),
   budgetForm: document.getElementById("budgetForm"),
   budgetMonth: document.getElementById("budgetMonth"),
+  budgetKind: document.getElementById("budgetKind"),
+  budgetCategoryLabel: document.getElementById("budgetCategoryLabel"),
   budgetCategory: document.getElementById("budgetCategory"),
+  budgetPlannedLabel: document.getElementById("budgetPlannedLabel"),
   budgetPlanned: document.getElementById("budgetPlanned"),
+  budgetCarryField: document.getElementById("budgetCarryField"),
   budgetCarry: document.getElementById("budgetCarry"),
   budgetSubmitButton: document.getElementById("budgetSubmitButton"),
   cancelBudgetEditButton: document.getElementById("cancelBudgetEditButton"),
@@ -173,6 +178,10 @@ function money(value) {
 function displayText(value) {
   const text = String(value || "").replace(/_/g, " ").trim();
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : "";
+}
+
+function accountTypeKey(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 function numberValue(input) {
@@ -862,11 +871,13 @@ function startAutoSyncChecks() {
     window.clearInterval(state.autoSyncTimer);
   }
   state.autoSyncTimer = window.setInterval(function () {
-    checkForRemoteUpdates(true).catch(function (error) {
-      state.syncMessage = "sync check failed";
-      updateAuthUi();
-      showStatus(error.message, true);
-    });
+    checkForRemoteUpdates(true)
+      .then(function () { return ensureRecurringTransactionsCurrent(true); })
+      .catch(function (error) {
+        state.syncMessage = "sync check failed";
+        updateAuthUi();
+        showStatus(error.message, true);
+      });
   }, 30000);
 }
 
@@ -880,7 +891,14 @@ function stopAutoSyncChecks() {
 function accountsWithBalances() {
   return all(`
     SELECT a.*,
-      a.opening_balance + COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE -t.amount END), 0) AS current_balance
+      a.opening_balance + COALESCE(SUM(
+        CASE
+          WHEN lower(a.type) = 'credit card' AND t.type = 'income' THEN -t.amount
+          WHEN lower(a.type) = 'credit card' AND t.type = 'expense' THEN t.amount
+          WHEN t.type = 'income' THEN t.amount
+          ELSE -t.amount
+        END
+      ), 0) AS current_balance
     FROM accounts a
     LEFT JOIN transactions t ON t.account_id = a.id
     GROUP BY a.id
@@ -890,7 +908,17 @@ function accountsWithBalances() {
 
 function accountTransactionNet(accountId) {
   return Number(scalar(
-    "SELECT COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END), 0) net FROM transactions WHERE account_id = ?",
+    `SELECT COALESCE(SUM(
+      CASE
+        WHEN lower(a.type) = 'credit card' AND t.type = 'income' THEN -t.amount
+        WHEN lower(a.type) = 'credit card' AND t.type = 'expense' THEN t.amount
+        WHEN t.type = 'income' THEN t.amount
+        ELSE -t.amount
+      END
+    ), 0) net
+    FROM accounts a
+    LEFT JOIN transactions t ON t.account_id = a.id
+    WHERE a.id = ?`,
     [Number(accountId)],
     "net",
   ));
@@ -914,7 +942,11 @@ function dashboardData() {
   const accounts = accountsWithBalances();
   const debtTotal = Number(scalar("SELECT COALESCE(SUM(balance), 0) total FROM debts", [], "total"));
   const netWorth = accounts.reduce(function (sum, account) {
-    return account.include_in_net_worth ? sum + Number(account.current_balance || 0) : sum;
+    if (!account.include_in_net_worth) {
+      return sum;
+    }
+    const balance = Number(account.current_balance || 0);
+    return accountTypeKey(account.type) === "credit card" ? sum - balance : sum + balance;
   }, 0) - debtTotal;
   return {
     income: Number(totals.income || 0),
@@ -950,6 +982,7 @@ function renderAll() {
   }
   els.monthInput.value = state.month;
   els.reportMonthInput.value = state.month;
+  els.transactionMonthInput.value = state.month;
   els.expectedIncomeMonth.value = state.month;
   els.budgetMonth.value = state.month;
   renderSelectors();
@@ -973,6 +1006,7 @@ function renderSelectors() {
   const oldTransactionDebt = els.txDebt.value;
   const oldRecurringAccount = els.recAccount.value;
   const oldRecurringDebt = els.recDebt.value;
+  const oldBudgetCategory = els.budgetCategory.value;
   clearNode(els.txAccount);
   clearNode(els.txTransferTo);
   clearNode(els.recAccount);
@@ -1029,7 +1063,8 @@ function renderSelectors() {
   fillCategorySelect(els.txCategory, categories, els.txType.value, true);
   fillCategorySelect(els.recCategory, categories, els.recType.value, true);
   fillCategorySelect(els.expectedIncomeCategory, categories, "income", false);
-  fillCategorySelect(els.budgetCategory, categories, "expense", false);
+  fillCategorySelect(els.budgetCategory, categories, els.budgetKind.value || "expense", false);
+  els.budgetCategory.value = oldBudgetCategory || "";
   const vendors = vendorOptions();
   clearNode(els.vendorList);
   vendors.forEach(function (row) {
@@ -1038,15 +1073,32 @@ function renderSelectors() {
     els.vendorList.appendChild(option);
   });
   updateTransactionTypeUi();
+  updateBudgetFormUi();
+}
+
+function updateBudgetFormUi() {
+  const isIncome = els.budgetKind.value === "income";
+  els.budgetCategoryLabel.textContent = isIncome ? "Income Category" : "Expense Category";
+  els.budgetPlannedLabel.textContent = isIncome ? "Expected Income" : "Allocated Amount";
+  els.budgetCarryField.classList.toggle("hidden", isIncome);
+  els.budgetCarry.disabled = isIncome;
+  if (isIncome) {
+    els.budgetCarry.checked = false;
+  }
+  if (state.editingBudgetId || state.editingExpectedIncomeId) {
+    els.budgetSubmitButton.textContent = isIncome ? "Update Expected Income" : "Update Allocation";
+  } else {
+    els.budgetSubmitButton.textContent = isIncome ? "Save Expected Income" : "Save Allocation";
+  }
 }
 
 function updateTransactionTypeUi() {
   const isTransfer = els.txType.value === "transfer";
   els.txAccountLabel.textContent = isTransfer ? "From Account" : "Account";
-  els.txTransferToField.classList.toggle("hidden", !isTransfer);
-  els.txCategoryField.classList.toggle("hidden", isTransfer);
-  els.txDebtField.classList.toggle("hidden", isTransfer);
-  els.txVendorField.classList.toggle("hidden", isTransfer);
+  els.txTransferToField.classList.toggle("mode-hidden", !isTransfer);
+  els.txCategoryField.classList.toggle("mode-hidden", isTransfer);
+  els.txDebtField.classList.toggle("mode-hidden", isTransfer);
+  els.txVendorField.classList.toggle("mode-hidden", isTransfer);
   els.txTransferTo.disabled = !isTransfer;
   els.txTransferTo.required = isTransfer;
   els.txCategory.disabled = isTransfer;
@@ -1245,6 +1297,23 @@ function processDueRecurringTransactions() {
   return { created: created, advanced: advanced };
 }
 
+async function ensureRecurringTransactionsCurrent(silent) {
+  if (!state.db || state.saving) {
+    return { created: 0, advanced: 0 };
+  }
+  const result = processDueRecurringTransactions();
+  if (result.created > 0 || result.advanced > 0) {
+    await saveAfterChange(
+      silent
+        ? (result.created > 0 ? "Added " + result.created + " recurring transaction(s)." : "Recurring schedules are up to date.")
+        : (result.created > 0
+          ? "Added " + result.created + " recurring transaction(s)."
+          : "Recurring schedules are up to date."),
+    );
+  }
+  return result;
+}
+
 function addRow(container, title, amount, detail, amountClass, actions) {
   const item = document.createElement("div");
   item.className = "row";
@@ -1298,7 +1367,13 @@ function renderDashboard() {
   }
   data.accounts.forEach(function (account) {
     const balance = Number(account.current_balance || 0);
-    addRow(els.accountBalanceList, account.name, money(balance), displayText(account.type), balance < 0 ? "negative" : "positive");
+    addRow(
+      els.accountBalanceList,
+      account.name,
+      money(balance),
+      displayText(account.type),
+      accountTypeKey(account.type) === "credit card" || balance < 0 ? "negative" : "positive",
+    );
   });
   clearNode(els.categorySpendList);
   const spending = all(`
@@ -1338,12 +1413,13 @@ function renderTransactions() {
     JOIN accounts a ON a.id = t.account_id
     LEFT JOIN categories c ON c.id = t.category_id
     LEFT JOIN debts d ON d.id = t.debt_id
-    WHERE lower(t.vendor || ' ' || t.notes || ' ' || a.name || ' ' || COALESCE(c.name, '') || ' ' || COALESCE(d.name, '')) LIKE ?
+    WHERE substr(t.date, 1, 7) = ?
+      AND lower(t.vendor || ' ' || t.notes || ' ' || a.name || ' ' || COALESCE(c.name, '') || ' ' || COALESCE(d.name, '')) LIKE ?
     ORDER BY t.date DESC, t.id DESC
     LIMIT 250
-  `, [search]);
+  `, [state.month, search]);
   if (!rows.length) {
-    els.transactionList.textContent = "No transactions found.";
+    els.transactionList.textContent = "No transactions found for " + state.month + ".";
   }
   rows.forEach(function (tx) {
     const title = tx.vendor || tx.notes || tx.category || "Transaction";
@@ -1406,7 +1482,7 @@ function renderAccounts() {
       account.name,
       money(balance),
       displayText(account.type),
-      balance < 0 ? "negative" : "positive",
+      accountTypeKey(account.type) === "credit card" || balance < 0 ? "negative" : "positive",
       [
         { label: "Edit", action: "edit-account", id: account.id },
         { label: "Delete", action: "delete-account", id: account.id, danger: true },
@@ -1707,7 +1783,13 @@ function renderAccountReport() {
   }
   rows.forEach(function (account) {
     const balance = Number(account.current_balance || 0);
-    addRow(list, account.name, money(balance), displayText(account.type) + " - Opening " + money(account.opening_balance), balance < 0 ? "negative" : "positive");
+    addRow(
+      list,
+      account.name,
+      money(balance),
+      displayText(account.type) + " - Opening " + money(account.opening_balance),
+      accountTypeKey(account.type) === "credit card" || balance < 0 ? "negative" : "positive",
+    );
   });
 }
 
@@ -1992,7 +2074,12 @@ async function saveRecurring(event) {
       values.concat([state.editingRecurringId]),
     );
     clearRecurringEditMode();
-    await saveAfterChange("Recurring transaction updated.");
+    const result = processDueRecurringTransactions();
+    await saveAfterChange(
+      result.created > 0
+        ? "Recurring transaction updated. Added " + result.created + " due transaction(s)."
+        : "Recurring transaction updated.",
+    );
     return;
   }
   run(
@@ -2004,7 +2091,12 @@ async function saveRecurring(event) {
   els.recFrequency.value = "monthly";
   els.recNextDate.value = today();
   els.recActive.checked = true;
-  await saveAfterChange("Recurring transaction added.");
+  const result = processDueRecurringTransactions();
+  await saveAfterChange(
+    result.created > 0
+      ? "Recurring transaction added. Added " + result.created + " due transaction(s)."
+      : "Recurring transaction added.",
+  );
 }
 
 function editRecurring(id) {
@@ -2119,7 +2211,14 @@ async function saveAccount(event) {
 function editAccount(id) {
   const account = one(`
     SELECT a.*,
-      a.opening_balance + COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE -t.amount END), 0) AS current_balance
+      a.opening_balance + COALESCE(SUM(
+        CASE
+          WHEN lower(a.type) = 'credit card' AND t.type = 'income' THEN -t.amount
+          WHEN lower(a.type) = 'credit card' AND t.type = 'expense' THEN t.amount
+          WHEN t.type = 'income' THEN t.amount
+          ELSE -t.amount
+        END
+      ), 0) AS current_balance
     FROM accounts a
     LEFT JOIN transactions t ON t.account_id = a.id
     WHERE a.id = ?
@@ -2246,20 +2345,7 @@ async function saveExpectedIncome(event) {
 }
 
 function editExpectedIncome(id) {
-  const budget = one("SELECT * FROM budgets WHERE id = ?", [Number(id)]);
-  if (!budget) {
-    return;
-  }
-  state.editingExpectedIncomeId = Number(id);
-  els.expectedIncomeMonth.value = budget.month || state.month;
-  els.expectedIncomeCategory.value = budget.category_id || "";
-  els.expectedIncomePlanned.value = budget.planned || "";
-  els.expectedIncomeSubmitButton.textContent = "Update Expected Income";
-  els.cancelExpectedIncomeEditButton.classList.remove("hidden");
-  openEditModal("Edit Expected Income", els.expectedIncomeForm);
-  window.setTimeout(function () {
-    els.expectedIncomePlanned.focus();
-  }, 50);
+  editBudget(id);
 }
 
 function clearExpectedIncomeEditMode() {
@@ -2279,21 +2365,27 @@ async function saveBudget(event) {
     return;
   }
   const month = els.budgetMonth.value || state.month;
+  const category = one("SELECT kind FROM categories WHERE id = ?", [Number(els.budgetCategory.value)]);
+  const kind = category ? category.kind : (els.budgetKind.value || "expense");
+  const planned = numberValue(els.budgetPlanned);
+  const carryForward = kind === "expense" && els.budgetCarry.checked ? 1 : 0;
   if (state.editingBudgetId) {
     run(
       `UPDATE budgets
        SET month = ?, category_id = ?, planned = ?, carry_forward = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
-      [month, Number(els.budgetCategory.value), numberValue(els.budgetPlanned), els.budgetCarry.checked ? 1 : 0, state.editingBudgetId],
+      [month, Number(els.budgetCategory.value), planned, carryForward, state.editingBudgetId],
     );
     state.month = month;
     syncDebtBudgetIfNeeded(state.month);
     clearBudgetEditMode();
     const summary = zeroBudgetSummary(state.month);
     await saveAfterChange(
-      Math.abs(summary.left) < 0.005
-        ? "Allocation updated. Every dollar is allocated."
-        : "Allocation updated. Left to allocate: " + money(summary.left) + ".",
+      kind === "income"
+        ? "Expected income updated. Left to allocate: " + money(summary.left) + "."
+        : (Math.abs(summary.left) < 0.005
+          ? "Allocation updated. Every dollar is allocated."
+          : "Allocation updated. Left to allocate: " + money(summary.left) + "."),
     );
     return;
   }
@@ -2302,7 +2394,7 @@ async function saveBudget(event) {
      VALUES (?, ?, ?, ?)
      ON CONFLICT(month, category_id)
      DO UPDATE SET planned = excluded.planned, carry_forward = excluded.carry_forward, updated_at = CURRENT_TIMESTAMP`,
-    [month, Number(els.budgetCategory.value), numberValue(els.budgetPlanned), els.budgetCarry.checked ? 1 : 0],
+    [month, Number(els.budgetCategory.value), planned, carryForward],
   );
   state.month = month;
   syncDebtBudgetIfNeeded(state.month);
@@ -2310,25 +2402,35 @@ async function saveBudget(event) {
   els.budgetCarry.checked = false;
   const summary = zeroBudgetSummary(state.month);
   await saveAfterChange(
-    Math.abs(summary.left) < 0.005
-      ? "Allocation saved. Every dollar is allocated."
-      : "Allocation saved. Left to allocate: " + money(summary.left) + ".",
+    kind === "income"
+      ? "Expected income saved. Left to allocate: " + money(summary.left) + "."
+      : (Math.abs(summary.left) < 0.005
+        ? "Allocation saved. Every dollar is allocated."
+        : "Allocation saved. Left to allocate: " + money(summary.left) + "."),
   );
 }
 
 function editBudget(id) {
-  const budget = one("SELECT * FROM budgets WHERE id = ?", [Number(id)]);
+  const budget = one(`
+    SELECT b.*, c.kind
+    FROM budgets b
+    JOIN categories c ON c.id = b.category_id
+    WHERE b.id = ?
+  `, [Number(id)]);
   if (!budget) {
     return;
   }
   state.editingBudgetId = Number(id);
+  state.editingExpectedIncomeId = budget.kind === "income" ? Number(id) : null;
   els.budgetMonth.value = budget.month || state.month;
+  els.budgetKind.value = budget.kind || "expense";
+  renderSelectors();
   els.budgetCategory.value = budget.category_id || "";
   els.budgetPlanned.value = budget.planned || "";
   els.budgetCarry.checked = Number(budget.carry_forward || 0) === 1;
-  els.budgetSubmitButton.textContent = "Update Allocation";
+  updateBudgetFormUi();
   els.cancelBudgetEditButton.classList.remove("hidden");
-  openEditModal("Edit Allocation", els.budgetForm);
+  openEditModal(budget.kind === "income" ? "Edit Expected Income" : "Edit Allocation", els.budgetForm);
   window.setTimeout(function () {
     els.budgetPlanned.focus();
   }, 50);
@@ -2336,21 +2438,23 @@ function editBudget(id) {
 
 function clearBudgetEditMode() {
   state.editingBudgetId = null;
+  state.editingExpectedIncomeId = null;
   els.budgetForm.reset();
   els.budgetMonth.value = state.month;
+  els.budgetKind.value = "expense";
   els.budgetCarry.checked = false;
   renderSelectors();
-  els.budgetSubmitButton.textContent = "Save Allocation";
+  updateBudgetFormUi();
   els.cancelBudgetEditButton.classList.add("hidden");
   closeEditModal(true);
 }
 
 async function resetBudgetFromDefaults() {
-  if (!confirm("Reset this month from category default budgets? Existing planned amounts for those categories will be replaced.")) {
+  if (!confirm("Reset this month from category default budgets? Existing expected income and planned amounts for those categories will be replaced.")) {
     return;
   }
   const month = els.budgetMonth.value || state.month;
-  const rows = all("SELECT id, monthly_limit FROM categories WHERE kind = 'expense' AND monthly_limit > 0");
+  const rows = all("SELECT id, monthly_limit FROM categories WHERE monthly_limit > 0");
   rows.forEach(function (category) {
     run(
       `INSERT INTO budgets(month, category_id, planned, carry_forward)
@@ -2363,7 +2467,7 @@ async function resetBudgetFromDefaults() {
   state.month = month;
   syncDebtBudgetIfNeeded(month);
   const summary = zeroBudgetSummary(month);
-  await saveAfterChange("Reset " + rows.length + " allocation(s) from defaults. Left to allocate: " + money(summary.left) + ".");
+  await saveAfterChange("Reset " + rows.length + " budget line(s) from defaults. Left to allocate: " + money(summary.left) + ".");
 }
 
 async function saveDebt(event) {
@@ -2601,11 +2705,15 @@ function bindEvents() {
     showStatus("Local app state cleared. Your Supabase budget file was not deleted.");
   });
   window.addEventListener("focus", function () {
-    checkForRemoteUpdates(true).catch(function (error) { showStatus(error.message, true); });
+    checkForRemoteUpdates(true)
+      .then(function () { return ensureRecurringTransactionsCurrent(true); })
+      .catch(function (error) { showStatus(error.message, true); });
   });
   document.addEventListener("visibilitychange", function () {
     if (!document.hidden) {
-      checkForRemoteUpdates(true).catch(function (error) { showStatus(error.message, true); });
+      checkForRemoteUpdates(true)
+        .then(function () { return ensureRecurringTransactionsCurrent(true); })
+        .catch(function (error) { showStatus(error.message, true); });
     }
   });
   els.monthInput.addEventListener("change", function () {
@@ -2613,6 +2721,9 @@ function bindEvents() {
   });
   els.reportMonthInput.addEventListener("change", function () {
     setBudgetMonth(els.reportMonthInput.value).catch(function (error) { showStatus(error.message, true); });
+  });
+  els.transactionMonthInput.addEventListener("change", function () {
+    setBudgetMonth(els.transactionMonthInput.value).catch(function (error) { showStatus(error.message, true); });
   });
   els.txType.addEventListener("change", function () {
     if (els.txType.value !== "expense") {
@@ -2640,6 +2751,10 @@ function bindEvents() {
       renderSelectors();
       chooseRecurringDebtCategory();
     }
+  });
+  els.budgetKind.addEventListener("change", function () {
+    renderSelectors();
+    updateBudgetFormUi();
   });
   els.transactionSearch.addEventListener("input", renderTransactions);
   els.txVendor.addEventListener("input", function () {
@@ -2748,6 +2863,7 @@ async function init() {
   els.recNextDate.value = today();
   els.monthInput.value = state.month;
   els.reportMonthInput.value = state.month;
+  els.transactionMonthInput.value = state.month;
   els.budgetMonth.value = state.month;
   setReady(false);
   await refreshSession();

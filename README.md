@@ -118,7 +118,7 @@ For best results, avoid editing the same account on two devices at the exact sam
 Adding a transaction:
 
 1. Enter the amount.
-2. Choose expense/income.
+2. Choose expense, income, or transfer.
 3. Choose account and category.
 4. For a debt payment, choose the matching debt in `Linked Debt`.
 5. Optionally add vendor and notes.
@@ -144,15 +144,15 @@ Use the `Recurring` tab to schedule repeating income or expense transactions.
 4. Leave `Active` checked unless the schedule should be paused.
 5. Tap `Add Recurring`.
 
-When a budget is opened, the app automatically creates any recurring transactions due on or before today, advances each schedule's next date, and saves the updated database. Use `Run Due Now` to manually check for due schedules. Frequencies are weekly, biweekly, monthly, and yearly.
+The app automatically creates any recurring transactions due on or before today when the budget opens, when the app wakes up, and after recurring schedules are saved. Use `Run Due Now` to manually check for due schedules. Frequencies are weekly, biweekly, monthly, and yearly.
 
 Generated recurring debt expense transactions reduce the linked debt balance just like manually entered linked debt payments.
 
 ## Budgeting
 
 1. Open `Budgets`.
-2. Enter expected income for the month.
-3. Allocate that income across expense, savings, giving, debt, and other categories.
+2. Use the budget form's `Type` dropdown to add expected income or an expense allocation.
+3. Allocate income across expense, savings, giving, debt, and other categories.
 4. Keep allocating until `Left To Allocate` is `$0.00`.
 
 Debt payments are added to the monthly budget automatically. The app sets the `Debt` allocation to the total of all tracked debts' minimum plus extra payments.

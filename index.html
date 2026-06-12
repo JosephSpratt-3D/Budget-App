@@ -74,7 +74,7 @@
             <label>Type<select id="txType"><option value="expense">Expense</option><option value="income">Income</option><option value="transfer">Transfer</option></select></label>
             <label>Date<input id="txDate" type="date" required></label>
             <label id="txAccountField"><span id="txAccountLabel">Account</span><select id="txAccount" required></select></label>
-            <label id="txTransferToField" class="hidden">To Account<select id="txTransferTo"></select></label>
+            <label id="txTransferToField" class="mode-hidden">To Account<select id="txTransferTo"></select></label>
             <label id="txCategoryField">Category<select id="txCategory"></select></label>
             <label id="txDebtField">Linked Debt<select id="txDebt"></select></label>
             <label id="txVendorField" class="vendor-field">Vendor<input id="txVendor" list="vendorList" autocomplete="off" placeholder="Vendor"><div id="txVendorSuggestions" class="suggestions hidden"></div></label>
@@ -110,6 +110,7 @@
             <button id="exportCsvButton" class="secondary small" type="button">Export CSV</button>
           </div>
           <div class="tool-row">
+            <input id="transactionMonthInput" type="month">
             <input id="transactionSearch" placeholder="Search vendor, notes, account, category, debt">
             <label class="file-button">Import CSV<input id="importCsvInput" type="file" accept=".csv,text/csv"></label>
           </div>
@@ -179,7 +180,7 @@
             <article class="stat"><span>Left To Allocate</span><strong id="budgetLeftValue">$0.00</strong></article>
             <article class="stat"><span>Status</span><strong id="budgetStatusValue">Needs Plan</strong></article>
           </div>
-          <form id="expectedIncomeForm" class="form-grid">
+          <form id="expectedIncomeForm" class="form-grid hidden">
             <label>Month<input id="expectedIncomeMonth" type="month" required></label>
             <label>Income Category<select id="expectedIncomeCategory" required></select></label>
             <label>Expected Income<input id="expectedIncomePlanned" inputmode="decimal" placeholder="0.00" required></label>
@@ -188,10 +189,11 @@
           </form>
           <form id="budgetForm" class="form-grid">
             <label>Month<input id="budgetMonth" type="month" required></label>
-            <label>Allocation Category<select id="budgetCategory" required></select></label>
-            <label>Allocated Amount<input id="budgetPlanned" inputmode="decimal" placeholder="0.00" required></label>
-            <label class="checkbox-row"><input id="budgetCarry" type="checkbox">Carry Forward</label>
-            <button id="budgetSubmitButton" class="primary" type="submit">Save Allocation</button>
+            <label>Type<select id="budgetKind"><option value="expense">Expense</option><option value="income">Income</option></select></label>
+            <label><span id="budgetCategoryLabel">Category</span><select id="budgetCategory" required></select></label>
+            <label><span id="budgetPlannedLabel">Planned Amount</span><input id="budgetPlanned" inputmode="decimal" placeholder="0.00" required></label>
+            <label id="budgetCarryField" class="checkbox-row"><input id="budgetCarry" type="checkbox">Carry Forward</label>
+            <button id="budgetSubmitButton" class="primary" type="submit">Save Budget Line</button>
             <button id="cancelBudgetEditButton" class="secondary hidden" type="button">Cancel Edit</button>
             <button id="resetBudgetDefaultsButton" class="secondary" type="button">Reset Month From Defaults</button>
           </form>

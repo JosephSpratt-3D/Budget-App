@@ -225,6 +225,11 @@ h2 {
   display: none;
 }
 
+.mode-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .modal {
   position: fixed;
   inset: 0;
