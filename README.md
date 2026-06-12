@@ -126,6 +126,14 @@ Adding a transaction:
 
 Linked debt expense transactions reduce the selected debt's tracked balance. Editing or deleting a linked transaction reverses the old balance impact before applying the new one.
 
+## Credit Cards And Transfers
+
+Credit cards are tracked as accounts. When adding or editing an account, set `Type` to `Credit Card`.
+
+- To charge a purchase to a card, add a normal expense transaction and choose the credit card account.
+- To pay the card from another account, use `Transfer or Card Payment`, choose the bank account as `From Account`, and choose the credit card as `To Account`.
+- Transfers update account balances but are excluded from spending, income, budget, and report totals so card payments do not double-count expenses.
+
 ## Recurring Transactions
 
 Use the `Recurring` tab to schedule repeating income or expense transactions.

@@ -83,6 +83,17 @@
             <button id="cancelTransactionEditButton" class="secondary hidden" type="button">Cancel Edit</button>
           </form>
         </section>
+        <section class="panel">
+          <h2>Transfer or Card Payment</h2>
+          <form id="transferForm" class="form-grid">
+            <label>Amount<input id="transferAmount" inputmode="decimal" placeholder="0.00" required></label>
+            <label>Date<input id="transferDate" type="date" required></label>
+            <label>From Account<select id="transferFromAccount" required></select></label>
+            <label>To Account<select id="transferToAccount" required></select></label>
+            <label class="wide">Notes<textarea id="transferNotes" rows="2" placeholder="Notes"></textarea></label>
+            <button class="primary" type="submit">Save Transfer</button>
+          </form>
+        </section>
       </section>
 
       <section id="dashboardTab" class="tab-page">
@@ -145,7 +156,7 @@
           <h2>Accounts</h2>
           <form id="accountForm" class="form-grid">
             <label>Name<input id="accountName" required></label>
-            <label>Type<input id="accountType" placeholder="Chequing, Savings, Credit Card"></label>
+            <label>Type<select id="accountType"><option value="Chequing">Chequing</option><option value="Savings">Savings</option><option value="Credit Card">Credit Card</option><option value="Cash">Cash</option><option value="Other">Other</option></select></label>
             <label><span id="accountBalanceLabel">Opening Balance</span><input id="accountOpening" inputmode="decimal" placeholder="0.00"></label>
             <label class="checkbox-row"><input id="accountNetWorth" type="checkbox" checked>Include In Net Worth</label>
             <button id="accountSubmitButton" class="primary" type="submit">Add Account</button>

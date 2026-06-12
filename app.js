@@ -72,6 +72,12 @@ const els = {
   txNotes: document.getElementById("txNotes"),
   cancelTransactionEditButton: document.getElementById("cancelTransactionEditButton"),
   vendorList: document.getElementById("vendorList"),
+  transferForm: document.getElementById("transferForm"),
+  transferAmount: document.getElementById("transferAmount"),
+  transferDate: document.getElementById("transferDate"),
+  transferFromAccount: document.getElementById("transferFromAccount"),
+  transferToAccount: document.getElementById("transferToAccount"),
+  transferNotes: document.getElementById("transferNotes"),
   transactionSearch: document.getElementById("transactionSearch"),
   transactionList: document.getElementById("transactionList"),
   exportCsvButton: document.getElementById("exportCsvButton"),
@@ -890,7 +896,7 @@ function accountTransactionNet(accountId) {
 
 function dashboardData() {
   const totals = one(
-    "SELECT COALESCE(SUM(CASE WHEN type='income' THEN amount ELSE 0 END), 0) income, COALESCE(SUM(CASE WHEN type='expense' THEN amount ELSE 0 END), 0) spending FROM transactions WHERE substr(date, 1, 7) = ?",
+    "SELECT COALESCE(SUM(CASE WHEN type='income' THEN amount ELSE 0 END), 0) income, COALESCE(SUM(CASE WHEN type='expense' THEN amount ELSE 0 END), 0) spending FROM transactions WHERE substr(date, 1, 7) = ? AND COALESCE(source, '') <> 'transfer'",
     [state.month],
   ) || { income: 0, spending: 0 };
   const planned = Number(scalar(
@@ -960,11 +966,15 @@ function renderSelectors() {
   const categories = all("SELECT * FROM categories ORDER BY kind, name");
   const debts = all("SELECT * FROM debts ORDER BY name");
   const oldAccount = els.txAccount.value;
+  const oldTransferFrom = els.transferFromAccount.value;
+  const oldTransferTo = els.transferToAccount.value;
   const oldDebtAccount = els.debtAccount.value;
   const oldTransactionDebt = els.txDebt.value;
   const oldRecurringAccount = els.recAccount.value;
   const oldRecurringDebt = els.recDebt.value;
   clearNode(els.txAccount);
+  clearNode(els.transferFromAccount);
+  clearNode(els.transferToAccount);
   clearNode(els.recAccount);
   clearNode(els.debtAccount);
   clearNode(els.txDebt);
@@ -987,6 +997,14 @@ function renderSelectors() {
     option.value = account.id;
     option.textContent = label;
     els.txAccount.appendChild(option);
+    const transferFromOption = document.createElement("option");
+    transferFromOption.value = account.id;
+    transferFromOption.textContent = label;
+    els.transferFromAccount.appendChild(transferFromOption);
+    const transferToOption = document.createElement("option");
+    transferToOption.value = account.id;
+    transferToOption.textContent = label;
+    els.transferToAccount.appendChild(transferToOption);
     const recurringOption = document.createElement("option");
     recurringOption.value = account.id;
     recurringOption.textContent = label;
@@ -997,6 +1015,8 @@ function renderSelectors() {
     els.debtAccount.appendChild(debtOption);
   });
   els.txAccount.value = oldAccount || (accounts[0] ? String(accounts[0].id) : "");
+  els.transferFromAccount.value = oldTransferFrom || (accounts[0] ? String(accounts[0].id) : "");
+  els.transferToAccount.value = oldTransferTo || (accounts[1] ? String(accounts[1].id) : (accounts[0] ? String(accounts[0].id) : ""));
   els.recAccount.value = oldRecurringAccount || (accounts[0] ? String(accounts[0].id) : "");
   els.debtAccount.value = oldDebtAccount || "";
   debts.forEach(function (debt) {
@@ -1266,7 +1286,7 @@ function renderDashboard() {
     FROM transactions t
     LEFT JOIN categories c ON c.id = t.category_id
     LEFT JOIN budgets b ON b.category_id = c.id AND b.month = ?
-    WHERE substr(t.date, 1, 7) = ? AND t.type = 'expense'
+    WHERE substr(t.date, 1, 7) = ? AND t.type = 'expense' AND COALESCE(t.source, '') <> 'transfer'
     GROUP BY name, b.planned
     ORDER BY amount DESC
   `, [state.month, state.month]);
@@ -1405,7 +1425,7 @@ function renderBudgets() {
       COALESCE(SUM(CASE WHEN t.type='expense' THEN t.amount ELSE 0 END), 0) actual
     FROM budgets b
     JOIN categories c ON c.id = b.category_id
-    LEFT JOIN transactions t ON t.category_id = b.category_id AND substr(t.date, 1, 7) = b.month
+    LEFT JOIN transactions t ON t.category_id = b.category_id AND substr(t.date, 1, 7) = b.month AND COALESCE(t.source, '') <> 'transfer'
     WHERE b.month = ?
     GROUP BY b.id
     ORDER BY c.kind DESC, c.name
@@ -1553,6 +1573,7 @@ function renderMonthlyTrendReport() {
       COALESCE(SUM(CASE WHEN type='income' THEN amount ELSE 0 END), 0) income,
       COALESCE(SUM(CASE WHEN type='expense' THEN amount ELSE 0 END), 0) spending
     FROM transactions
+    WHERE COALESCE(source, '') <> 'transfer'
     GROUP BY month
     ORDER BY month DESC
     LIMIT 24
@@ -1584,7 +1605,7 @@ function renderBudgetPerformanceReport() {
       COALESCE(SUM(CASE WHEN t.type='expense' THEN t.amount ELSE 0 END), 0) actual
     FROM budgets b
     JOIN categories c ON c.id = b.category_id
-    LEFT JOIN transactions t ON t.category_id = b.category_id AND substr(t.date, 1, 7) = b.month
+    LEFT JOIN transactions t ON t.category_id = b.category_id AND substr(t.date, 1, 7) = b.month AND COALESCE(t.source, '') <> 'transfer'
     WHERE b.month = ? AND c.kind = 'expense'
     GROUP BY b.id
     ORDER BY (b.planned - actual) ASC
@@ -1616,7 +1637,7 @@ function renderCategoryReport() {
       COALESCE(SUM(t.amount), 0) amount
     FROM transactions t
     LEFT JOIN categories c ON c.id = t.category_id
-    WHERE substr(t.date, 1, 7) = ? AND t.type = 'expense'
+    WHERE substr(t.date, 1, 7) = ? AND t.type = 'expense' AND COALESCE(t.source, '') <> 'transfer'
     GROUP BY category
     ORDER BY amount DESC
     LIMIT 12
@@ -1640,7 +1661,7 @@ function renderIncomeReport() {
       COALESCE(SUM(t.amount), 0) amount
     FROM transactions t
     LEFT JOIN categories c ON c.id = t.category_id
-    WHERE substr(t.date, 1, 7) = ? AND t.type = 'income'
+    WHERE substr(t.date, 1, 7) = ? AND t.type = 'income' AND COALESCE(t.source, '') <> 'transfer'
     GROUP BY category
     ORDER BY amount DESC
     LIMIT 10
@@ -1751,6 +1772,38 @@ async function saveTransaction(event) {
   els.txAmount.focus();
 }
 
+async function saveTransfer(event) {
+  event.preventDefault();
+  const fromAccount = Number(els.transferFromAccount.value || 0);
+  const toAccount = Number(els.transferToAccount.value || 0);
+  const amount = Math.abs(numberValue(els.transferAmount));
+  if (!fromAccount || !toAccount || fromAccount === toAccount || amount <= 0) {
+    showStatus("Choose two different accounts and enter an amount.", true);
+    return;
+  }
+  const transferId = "transfer-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+  const date = els.transferDate.value || today();
+  const notes = els.transferNotes.value.trim();
+  run(
+    `INSERT INTO transactions(account_id, category_id, debt_id, date, type, amount, vendor, notes, source, external_id)
+     VALUES (?, NULL, NULL, ?, 'expense', ?, 'Transfer', ?, 'transfer', ?)`,
+    [fromAccount, date, amount, notes, transferId + "-out"],
+  );
+  run(
+    `INSERT INTO transactions(account_id, category_id, debt_id, date, type, amount, vendor, notes, source, external_id)
+     VALUES (?, NULL, NULL, ?, 'income', ?, 'Transfer', ?, 'transfer', ?)`,
+    [toAccount, date, amount, notes, transferId + "-in"],
+  );
+  const keepFrom = els.transferFromAccount.value;
+  const keepTo = els.transferToAccount.value;
+  els.transferForm.reset();
+  els.transferDate.value = today();
+  renderSelectors();
+  els.transferFromAccount.value = keepFrom;
+  els.transferToAccount.value = keepTo;
+  await saveAfterChange("Transfer saved.");
+}
+
 function editTransaction(id) {
   const tx = one("SELECT * FROM transactions WHERE id = ?", [Number(id)]);
   if (!tx) {
@@ -1800,6 +1853,15 @@ async function deleteById(table, id, message) {
 
 async function deleteTransaction(id) {
   const tx = one("SELECT * FROM transactions WHERE id = ?", [Number(id)]);
+  if (tx && tx.source === "transfer" && tx.external_id) {
+    const baseId = String(tx.external_id).replace(/-(out|in)$/, "");
+    run(
+      "DELETE FROM transactions WHERE source = 'transfer' AND (external_id = ? OR external_id = ?)",
+      [baseId + "-out", baseId + "-in"],
+    );
+    await saveAfterChange("Transfer deleted.");
+    return;
+  }
   applyDebtImpact(tx, true);
   run("DELETE FROM transactions WHERE id = ?", [Number(id)]);
   await saveAfterChange("Transaction deleted.");
@@ -1977,7 +2039,10 @@ function editAccount(id) {
   }
   state.editingAccountId = Number(id);
   els.accountName.value = account.name || "";
-  els.accountType.value = account.type || "";
+  els.accountType.value = account.type || "Chequing";
+  if (els.accountType.value !== (account.type || "Chequing")) {
+    els.accountType.value = "Other";
+  }
   els.accountOpening.value = account.current_balance || "";
   els.accountBalanceLabel.textContent = "Balance";
   els.accountNetWorth.checked = Number(account.include_in_net_worth || 0) === 1;
@@ -2506,6 +2571,9 @@ function bindEvents() {
   els.transactionForm.addEventListener("submit", function (event) {
     saveTransaction(event).catch(function (error) { showStatus(error.message, true); });
   });
+  els.transferForm.addEventListener("submit", function (event) {
+    saveTransfer(event).catch(function (error) { showStatus(error.message, true); });
+  });
   els.cancelTransactionEditButton.addEventListener("click", clearTransactionEditMode);
   els.recurringForm.addEventListener("submit", function (event) {
     saveRecurring(event).catch(function (error) { showStatus(error.message, true); });
@@ -2588,6 +2656,7 @@ async function init() {
   createSupabaseClient();
   bindEvents();
   els.txDate.value = today();
+  els.transferDate.value = today();
   els.recNextDate.value = today();
   els.monthInput.value = state.month;
   els.reportMonthInput.value = state.month;
