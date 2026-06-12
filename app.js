@@ -138,7 +138,6 @@ const els = {
   editModal: document.getElementById("editModal"),
   editModalTitle: document.getElementById("editModalTitle"),
   editModalBody: document.getElementById("editModalBody"),
-  closeEditModalButton: document.getElementById("closeEditModalButton"),
 };
 
 function currentMonth() {
@@ -2230,9 +2229,6 @@ function bindEvents() {
   });
   els.logoutSettingsButton.addEventListener("click", function () {
     signOut().catch(function (error) { showStatus(error.message, true); });
-  });
-  els.closeEditModalButton.addEventListener("click", function () {
-    closeEditModal(false);
   });
   els.editModal.addEventListener("click", function (event) {
     if (event.target === els.editModal) {
