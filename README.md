@@ -93,6 +93,14 @@ The app saves with Storage `upsert`, so it needs `select`, `insert`, and `update
 
 Most changes save immediately after the action completes. Before a database is open, the signed-in panel has `Open Budget`. After the database is open, the top bar and Settings tab have manual `Sync` controls.
 
+## Add To Home Screen On iPhone
+
+1. Open the app in Safari.
+2. Tap the Safari `Share` button.
+3. Scroll down and tap `Add to Home Screen`.
+4. Tap `Add`.
+5. Open Christendom Budgeting from the new Home Screen icon.
+
 ## Multi-Device Sync
 
 The app stores the whole SQLite database file in Supabase Storage, so two devices cannot safely merge simultaneous edits into one file. To make same-account use safer, the app tracks the remote Storage file version.
