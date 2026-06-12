@@ -1095,10 +1095,10 @@ function updateBudgetFormUi() {
 function updateTransactionTypeUi() {
   const isTransfer = els.txType.value === "transfer";
   els.txAccountLabel.textContent = isTransfer ? "From Account" : "Account";
-  els.txTransferToField.classList.toggle("mode-hidden", !isTransfer);
-  els.txCategoryField.classList.toggle("mode-hidden", isTransfer);
-  els.txDebtField.classList.toggle("mode-hidden", isTransfer);
-  els.txVendorField.classList.toggle("mode-hidden", isTransfer);
+  els.txTransferToField.classList.toggle("hidden", !isTransfer);
+  els.txCategoryField.classList.toggle("hidden", isTransfer);
+  els.txDebtField.classList.toggle("hidden", isTransfer);
+  els.txVendorField.classList.toggle("hidden", isTransfer);
   els.txTransferTo.disabled = !isTransfer;
   els.txTransferTo.required = isTransfer;
   els.txCategory.disabled = isTransfer;
