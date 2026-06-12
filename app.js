@@ -129,6 +129,7 @@ const els = {
   categorySubmitButton: document.getElementById("categorySubmitButton"),
   cancelCategoryEditButton: document.getElementById("cancelCategoryEditButton"),
   categoriesList: document.getElementById("categoriesList"),
+  budgetMonthInput: document.getElementById("budgetMonthInput"),
   budgetForm: document.getElementById("budgetForm"),
   budgetKind: document.getElementById("budgetKind"),
   budgetCategoryLabel: document.getElementById("budgetCategoryLabel"),
@@ -1068,6 +1069,7 @@ function renderAll() {
   els.monthInput.value = state.month;
   els.reportMonthInput.value = state.month;
   els.transactionMonthInput.value = state.month;
+  els.budgetMonthInput.value = state.month;
   renderSelectors();
   renderDashboard();
   renderTransactions();
@@ -2755,6 +2757,9 @@ function bindEvents() {
   els.transactionMonthInput.addEventListener("change", function () {
     setBudgetMonth(els.transactionMonthInput.value).catch(function (error) { showStatus(error.message, true); });
   });
+  els.budgetMonthInput.addEventListener("change", function () {
+    setBudgetMonth(els.budgetMonthInput.value).catch(function (error) { showStatus(error.message, true); });
+  });
   els.txType.addEventListener("change", function () {
     if (els.txType.value !== "expense") {
       els.txDebt.value = "";
@@ -2896,6 +2901,7 @@ async function init() {
   els.monthInput.value = state.month;
   els.reportMonthInput.value = state.month;
   els.transactionMonthInput.value = state.month;
+  els.budgetMonthInput.value = state.month;
   setReady(false);
   await refreshSession();
   state.supabase.auth.onAuthStateChange(function (_event, session) {
