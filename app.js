@@ -21,6 +21,8 @@ const state = {
   editingCategoryId: null,
   editingDebtId: null,
   editingRecurringId: null,
+  editingExpectedIncomeId: null,
+  editingBudgetId: null,
   dirty: false,
   saving: false,
 };
@@ -66,6 +68,7 @@ const els = {
   txCategory: document.getElementById("txCategory"),
   txDebt: document.getElementById("txDebt"),
   txVendor: document.getElementById("txVendor"),
+  txVendorSuggestions: document.getElementById("txVendorSuggestions"),
   txNotes: document.getElementById("txNotes"),
   cancelTransactionEditButton: document.getElementById("cancelTransactionEditButton"),
   vendorList: document.getElementById("vendorList"),
@@ -82,6 +85,7 @@ const els = {
   recCategory: document.getElementById("recCategory"),
   recDebt: document.getElementById("recDebt"),
   recVendor: document.getElementById("recVendor"),
+  recVendorSuggestions: document.getElementById("recVendorSuggestions"),
   recNotes: document.getElementById("recNotes"),
   recActive: document.getElementById("recActive"),
   recurringSubmitButton: document.getElementById("recurringSubmitButton"),
@@ -107,11 +111,15 @@ const els = {
   expectedIncomeMonth: document.getElementById("expectedIncomeMonth"),
   expectedIncomeCategory: document.getElementById("expectedIncomeCategory"),
   expectedIncomePlanned: document.getElementById("expectedIncomePlanned"),
+  expectedIncomeSubmitButton: document.getElementById("expectedIncomeSubmitButton"),
+  cancelExpectedIncomeEditButton: document.getElementById("cancelExpectedIncomeEditButton"),
   budgetForm: document.getElementById("budgetForm"),
   budgetMonth: document.getElementById("budgetMonth"),
   budgetCategory: document.getElementById("budgetCategory"),
   budgetPlanned: document.getElementById("budgetPlanned"),
   budgetCarry: document.getElementById("budgetCarry"),
+  budgetSubmitButton: document.getElementById("budgetSubmitButton"),
+  cancelBudgetEditButton: document.getElementById("cancelBudgetEditButton"),
   resetBudgetDefaultsButton: document.getElementById("resetBudgetDefaultsButton"),
   budgetExpectedValue: document.getElementById("budgetExpectedValue"),
   budgetAllocatedValue: document.getElementById("budgetAllocatedValue"),
@@ -256,6 +264,12 @@ function closeEditModal(returnOnly) {
     }
     if (state.editingDebtId) {
       clearDebtEditMode();
+    }
+    if (state.editingExpectedIncomeId) {
+      clearExpectedIncomeEditMode();
+    }
+    if (state.editingBudgetId) {
+      clearBudgetEditMode();
     }
   }
 }
@@ -992,13 +1006,61 @@ function renderSelectors() {
   fillCategorySelect(els.recCategory, categories, els.recType.value, true);
   fillCategorySelect(els.expectedIncomeCategory, categories, "income", false);
   fillCategorySelect(els.budgetCategory, categories, "expense", false);
-  const vendors = all("SELECT vendor, COUNT(*) count FROM transactions WHERE TRIM(vendor) <> '' GROUP BY vendor ORDER BY count DESC, vendor LIMIT 100");
+  const vendors = vendorOptions();
   clearNode(els.vendorList);
   vendors.forEach(function (row) {
     const option = document.createElement("option");
-    option.value = row.vendor;
+    option.value = row;
     els.vendorList.appendChild(option);
   });
+}
+
+function vendorOptions() {
+  const rows = all(`
+    SELECT vendor, COUNT(*) count
+    FROM (
+      SELECT vendor FROM transactions WHERE TRIM(vendor) <> ''
+      UNION ALL
+      SELECT vendor FROM recurring_transactions WHERE TRIM(vendor) <> ''
+    )
+    GROUP BY vendor
+    ORDER BY count DESC, vendor
+    LIMIT 100
+  `);
+  return rows.map(function (row) {
+    return row.vendor;
+  });
+}
+
+function renderVendorSuggestions(input, container) {
+  const query = String(input.value || "").trim().toLowerCase();
+  const options = vendorOptions().filter(function (vendor) {
+    return !query || vendor.toLowerCase().indexOf(query) !== -1;
+  }).slice(0, 6);
+  clearNode(container);
+  if (!options.length) {
+    container.classList.add("hidden");
+    return;
+  }
+  options.forEach(function (vendor) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "suggestion-option";
+    button.textContent = vendor;
+    button.addEventListener("mousedown", function (event) {
+      event.preventDefault();
+      input.value = vendor;
+      container.classList.add("hidden");
+    });
+    container.appendChild(button);
+  });
+  container.classList.remove("hidden");
+}
+
+function hideVendorSuggestions(container) {
+  window.setTimeout(function () {
+    container.classList.add("hidden");
+  }, 120);
 }
 
 function fillCategorySelect(select, categories, kind, allowEmpty) {
@@ -1357,7 +1419,10 @@ function renderBudgets() {
       money(budget.planned),
       "Expected for " + state.month,
       "positive",
-      [{ label: "Delete", action: "delete-budget", id: budget.id, danger: true }],
+      [
+        { label: "Edit", action: "edit-expected-income", id: budget.id },
+        { label: "Delete", action: "delete-budget", id: budget.id, danger: true },
+      ],
     );
   });
   if (allocationRows.length) {
@@ -1376,7 +1441,10 @@ function renderBudgets() {
       money(actual),
       "Planned " + money(planned) + " - Remaining " + money(remaining) + (budget.carry_forward ? " - Carry forward" : ""),
       actual > planned ? "negative" : "positive",
-      [{ label: "Delete", action: "delete-budget", id: budget.id, danger: true }],
+      [
+        { label: "Edit", action: "edit-budget", id: budget.id },
+        { label: "Delete", action: "delete-budget", id: budget.id, danger: true },
+      ],
     );
   });
 }
@@ -1709,6 +1777,14 @@ function clearTransactionEditMode() {
 }
 
 async function deleteById(table, id, message) {
+  if (table === "budgets") {
+    if (state.editingExpectedIncomeId === Number(id)) {
+      clearExpectedIncomeEditMode();
+    }
+    if (state.editingBudgetId === Number(id)) {
+      clearBudgetEditMode();
+    }
+  }
   run("DELETE FROM " + table + " WHERE id = ?", [Number(id)]);
   await saveAfterChange(message);
 }
@@ -1961,6 +2037,19 @@ async function saveExpectedIncome(event) {
     return;
   }
   const month = els.expectedIncomeMonth.value || state.month;
+  if (state.editingExpectedIncomeId) {
+    run(
+      `UPDATE budgets
+       SET month = ?, category_id = ?, planned = ?, carry_forward = 0, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [month, Number(els.expectedIncomeCategory.value), planned, state.editingExpectedIncomeId],
+    );
+    state.month = month;
+    clearExpectedIncomeEditMode();
+    const summary = zeroBudgetSummary(month);
+    await saveAfterChange("Expected income updated. Left to allocate: " + money(summary.left) + ".");
+    return;
+  }
   run(
     `INSERT INTO budgets(month, category_id, planned, carry_forward)
      VALUES (?, ?, ?, 0)
@@ -1974,10 +2063,56 @@ async function saveExpectedIncome(event) {
   await saveAfterChange("Expected income saved. Left to allocate: " + money(summary.left) + ".");
 }
 
+function editExpectedIncome(id) {
+  const budget = one("SELECT * FROM budgets WHERE id = ?", [Number(id)]);
+  if (!budget) {
+    return;
+  }
+  state.editingExpectedIncomeId = Number(id);
+  els.expectedIncomeMonth.value = budget.month || state.month;
+  els.expectedIncomeCategory.value = budget.category_id || "";
+  els.expectedIncomePlanned.value = budget.planned || "";
+  els.expectedIncomeSubmitButton.textContent = "Update Expected Income";
+  els.cancelExpectedIncomeEditButton.classList.remove("hidden");
+  openEditModal("Edit Expected Income", els.expectedIncomeForm);
+  window.setTimeout(function () {
+    els.expectedIncomePlanned.focus();
+  }, 50);
+}
+
+function clearExpectedIncomeEditMode() {
+  state.editingExpectedIncomeId = null;
+  els.expectedIncomeForm.reset();
+  els.expectedIncomeMonth.value = state.month;
+  renderSelectors();
+  els.expectedIncomeSubmitButton.textContent = "Save Expected Income";
+  els.cancelExpectedIncomeEditButton.classList.add("hidden");
+  closeEditModal(true);
+}
+
 async function saveBudget(event) {
   event.preventDefault();
   if (!els.budgetCategory.value) {
     showStatus("Choose a category.", true);
+    return;
+  }
+  const month = els.budgetMonth.value || state.month;
+  if (state.editingBudgetId) {
+    run(
+      `UPDATE budgets
+       SET month = ?, category_id = ?, planned = ?, carry_forward = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [month, Number(els.budgetCategory.value), numberValue(els.budgetPlanned), els.budgetCarry.checked ? 1 : 0, state.editingBudgetId],
+    );
+    state.month = month;
+    syncDebtBudgetIfNeeded(state.month);
+    clearBudgetEditMode();
+    const summary = zeroBudgetSummary(state.month);
+    await saveAfterChange(
+      Math.abs(summary.left) < 0.005
+        ? "Allocation updated. Every dollar is allocated."
+        : "Allocation updated. Left to allocate: " + money(summary.left) + ".",
+    );
     return;
   }
   run(
@@ -1985,9 +2120,9 @@ async function saveBudget(event) {
      VALUES (?, ?, ?, ?)
      ON CONFLICT(month, category_id)
      DO UPDATE SET planned = excluded.planned, carry_forward = excluded.carry_forward, updated_at = CURRENT_TIMESTAMP`,
-    [els.budgetMonth.value || state.month, Number(els.budgetCategory.value), numberValue(els.budgetPlanned), els.budgetCarry.checked ? 1 : 0],
+    [month, Number(els.budgetCategory.value), numberValue(els.budgetPlanned), els.budgetCarry.checked ? 1 : 0],
   );
-  state.month = els.budgetMonth.value || state.month;
+  state.month = month;
   syncDebtBudgetIfNeeded(state.month);
   els.budgetPlanned.value = "";
   els.budgetCarry.checked = false;
@@ -1997,6 +2132,35 @@ async function saveBudget(event) {
       ? "Allocation saved. Every dollar is allocated."
       : "Allocation saved. Left to allocate: " + money(summary.left) + ".",
   );
+}
+
+function editBudget(id) {
+  const budget = one("SELECT * FROM budgets WHERE id = ?", [Number(id)]);
+  if (!budget) {
+    return;
+  }
+  state.editingBudgetId = Number(id);
+  els.budgetMonth.value = budget.month || state.month;
+  els.budgetCategory.value = budget.category_id || "";
+  els.budgetPlanned.value = budget.planned || "";
+  els.budgetCarry.checked = Number(budget.carry_forward || 0) === 1;
+  els.budgetSubmitButton.textContent = "Update Allocation";
+  els.cancelBudgetEditButton.classList.remove("hidden");
+  openEditModal("Edit Allocation", els.budgetForm);
+  window.setTimeout(function () {
+    els.budgetPlanned.focus();
+  }, 50);
+}
+
+function clearBudgetEditMode() {
+  state.editingBudgetId = null;
+  els.budgetForm.reset();
+  els.budgetMonth.value = state.month;
+  els.budgetCarry.checked = false;
+  renderSelectors();
+  els.budgetSubmitButton.textContent = "Save Allocation";
+  els.cancelBudgetEditButton.classList.add("hidden");
+  closeEditModal(true);
 }
 
 async function resetBudgetFromDefaults() {
@@ -2295,6 +2459,24 @@ function bindEvents() {
     }
   });
   els.transactionSearch.addEventListener("input", renderTransactions);
+  els.txVendor.addEventListener("input", function () {
+    renderVendorSuggestions(els.txVendor, els.txVendorSuggestions);
+  });
+  els.txVendor.addEventListener("focus", function () {
+    renderVendorSuggestions(els.txVendor, els.txVendorSuggestions);
+  });
+  els.txVendor.addEventListener("blur", function () {
+    hideVendorSuggestions(els.txVendorSuggestions);
+  });
+  els.recVendor.addEventListener("input", function () {
+    renderVendorSuggestions(els.recVendor, els.recVendorSuggestions);
+  });
+  els.recVendor.addEventListener("focus", function () {
+    renderVendorSuggestions(els.recVendor, els.recVendorSuggestions);
+  });
+  els.recVendor.addEventListener("blur", function () {
+    hideVendorSuggestions(els.recVendorSuggestions);
+  });
   els.transactionForm.addEventListener("submit", function (event) {
     saveTransaction(event).catch(function (error) { showStatus(error.message, true); });
   });
@@ -2317,9 +2499,11 @@ function bindEvents() {
   els.expectedIncomeForm.addEventListener("submit", function (event) {
     saveExpectedIncome(event).catch(function (error) { showStatus(error.message, true); });
   });
+  els.cancelExpectedIncomeEditButton.addEventListener("click", clearExpectedIncomeEditMode);
   els.budgetForm.addEventListener("submit", function (event) {
     saveBudget(event).catch(function (error) { showStatus(error.message, true); });
   });
+  els.cancelBudgetEditButton.addEventListener("click", clearBudgetEditMode);
   els.resetBudgetDefaultsButton.addEventListener("click", function () {
     resetBudgetFromDefaults().catch(function (error) { showStatus(error.message, true); });
   });
@@ -2360,6 +2544,10 @@ function bindEvents() {
         clearCategoryEditMode();
       }
       deleteById("categories", id, "Category deleted.").catch(function (error) { showStatus(error.message, true); });
+    } else if (action === "edit-expected-income") {
+      editExpectedIncome(id);
+    } else if (action === "edit-budget") {
+      editBudget(id);
     } else if (action === "delete-budget" && confirm("Delete this budget line?")) {
       deleteById("budgets", id, "Budget deleted.").catch(function (error) { showStatus(error.message, true); });
     } else if (action === "edit-debt") {

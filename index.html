@@ -64,7 +64,7 @@
             <label>Account<select id="txAccount" required></select></label>
             <label>Category<select id="txCategory"></select></label>
             <label>Linked Debt<select id="txDebt"></select></label>
-            <label>Vendor<input id="txVendor" list="vendorList" autocomplete="off" placeholder="Vendor"></label>
+            <label class="vendor-field">Vendor<input id="txVendor" list="vendorList" autocomplete="off" placeholder="Vendor"><div id="txVendorSuggestions" class="suggestions hidden"></div></label>
             <datalist id="vendorList"></datalist>
             <label class="wide">Notes<textarea id="txNotes" rows="2" placeholder="Notes"></textarea></label>
             <button class="primary" type="submit">Save Transaction</button>
@@ -116,7 +116,7 @@
             <label>Account<select id="recAccount" required></select></label>
             <label>Category<select id="recCategory"></select></label>
             <label>Linked Debt<select id="recDebt"></select></label>
-            <label>Vendor<input id="recVendor" autocomplete="off" placeholder="Vendor"></label>
+            <label class="vendor-field">Vendor<input id="recVendor" list="vendorList" autocomplete="off" placeholder="Vendor"><div id="recVendorSuggestions" class="suggestions hidden"></div></label>
             <label class="wide">Notes<textarea id="recNotes" rows="2" placeholder="Notes"></textarea></label>
             <label class="checkbox-row"><input id="recActive" type="checkbox" checked>Active</label>
             <button id="recurringSubmitButton" class="primary" type="submit">Add Recurring</button>
@@ -168,14 +168,16 @@
             <label>Month<input id="expectedIncomeMonth" type="month" required></label>
             <label>Income Category<select id="expectedIncomeCategory" required></select></label>
             <label>Expected Income<input id="expectedIncomePlanned" inputmode="decimal" placeholder="0.00" required></label>
-            <button class="primary" type="submit">Save Expected Income</button>
+            <button id="expectedIncomeSubmitButton" class="primary" type="submit">Save Expected Income</button>
+            <button id="cancelExpectedIncomeEditButton" class="secondary hidden" type="button">Cancel Edit</button>
           </form>
           <form id="budgetForm" class="form-grid">
             <label>Month<input id="budgetMonth" type="month" required></label>
             <label>Allocation Category<select id="budgetCategory" required></select></label>
             <label>Allocated Amount<input id="budgetPlanned" inputmode="decimal" placeholder="0.00" required></label>
             <label class="checkbox-row"><input id="budgetCarry" type="checkbox">Carry Forward</label>
-            <button class="primary" type="submit">Save Allocation</button>
+            <button id="budgetSubmitButton" class="primary" type="submit">Save Allocation</button>
+            <button id="cancelBudgetEditButton" class="secondary hidden" type="button">Cancel Edit</button>
             <button id="resetBudgetDefaultsButton" class="secondary" type="button">Reset Month From Defaults</button>
           </form>
           <div id="budgetsList" class="list"></div>
