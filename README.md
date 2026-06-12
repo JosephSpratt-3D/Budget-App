@@ -124,6 +124,8 @@ Adding a transaction:
 5. Optionally add vendor and notes.
 6. Tap `Save Transaction`.
 
+Choose `No Account` when an income or expense should affect budgets and reports without changing any account balance. This is useful for budget-only adjustments or tracking spending that already cleared outside the accounts you track in the app.
+
 Linked debt expense transactions reduce the selected debt's tracked balance. Editing or deleting a linked transaction reverses the old balance impact before applying the new one.
 
 ## Credit Cards And Transfers
@@ -177,6 +179,19 @@ Budget rows show what has been spent so far, plus the planned and remaining amou
 - Category allocation defaults and reset-from-defaults
 - Editable debts with automatic monthly budget allocations and linked payment transactions
 - Reports for cash flow, savings rate, budget performance, categories, income sources, accounts, and debt payoff
+
+## App Guide
+
+- `Add`: enter income, expenses, transfers, and budget-only transactions. Use `No Account` for transactions that should affect the budget but not account balances.
+- `Dashboard`: review monthly income, spending, budget remaining, net worth, account balances, and category spending.
+- `Transactions`: filter by month, search transactions, edit rows, delete rows, and import or export CSV files.
+- `Recurring`: schedule repeating income or expenses. Due recurring items are created automatically when the budget opens, when the app wakes, and during sync checks.
+- `Accounts`: track bank accounts, cash, savings, and credit cards. Credit card balances show red, charges increase the amount owed, and payments reduce the amount owed.
+- `Categories`: create income and expense categories and set default monthly budget amounts.
+- `Budgets`: add expected income and expense allocations for the selected month. `Reset Month From Defaults` copies category defaults into the current month.
+- `Debts`: track balances, rates, payments, and payoff estimates. Linked debt transactions reduce the tracked debt balance.
+- `Reports`: review cash flow, budget performance, categories, income sources, account balances, and debt payoff.
+- `Settings`: sync manually, reorder tabs, review the in-app guide, log out, or clear local app state.
 
 ## Security Notes
 

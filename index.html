@@ -74,7 +74,7 @@
             <label class="amount-field">Amount<input id="txAmount" inputmode="decimal" placeholder="0.00" required></label>
             <label>Type<select id="txType"><option value="expense">Expense</option><option value="income">Income</option><option value="transfer">Transfer</option></select></label>
             <label>Date<input id="txDate" type="date" required></label>
-            <label id="txAccountField"><span id="txAccountLabel">Account</span><select id="txAccount" required></select></label>
+            <label id="txAccountField"><span id="txAccountLabel">Account</span><select id="txAccount"></select></label>
             <label id="txTransferToField" class="hidden">To Account<select id="txTransferTo"></select></label>
             <label id="txCategoryField">Category<select id="txCategory"></select></label>
             <label id="txDebtField">Linked Debt<select id="txDebt"></select></label>
@@ -232,6 +232,20 @@
           <h3 class="inline-section-title">Tab Order</h3>
           <div id="tabOrderList" class="list"></div>
           <button id="resetTabOrderButton" class="secondary" type="button">Reset Tab Order</button>
+          <details class="tutorial" open>
+            <summary>App Guide</summary>
+            <ol>
+              <li><strong>Add</strong>: enter income, expenses, transfers, and budget-only transactions. Choose <strong>No Account</strong> when a transaction should affect budgets and reports without changing an account balance.</li>
+              <li><strong>Dashboard</strong>: review monthly income, spending, budget remaining, net worth, account balances, and category spending.</li>
+              <li><strong>Transactions</strong>: filter by month, search activity, edit rows, delete rows, and import or export CSV files.</li>
+              <li><strong>Recurring</strong>: schedule repeating income or expenses. Due recurring items are created automatically when the budget opens, wakes, or sync checks run.</li>
+              <li><strong>Accounts</strong>: track bank accounts, cash, savings, and credit cards. Credit card balances show red and payments reduce the amount owed.</li>
+              <li><strong>Budgets</strong>: add expected income and expense allocations for the selected month. Reset from defaults copies category default amounts into the month.</li>
+              <li><strong>Debts</strong>: track debt balances, payments, and payoff estimates. Debt payments can be linked to transactions and added to the monthly budget automatically.</li>
+              <li><strong>Reports</strong>: review cash flow, budget performance, categories, income sources, account balances, and debt payoff.</li>
+              <li><strong>Sync</strong>: saves your browser SQLite budget file to your private Supabase Storage file for the logged-in account.</li>
+            </ol>
+          </details>
           <button id="saveDbButton" class="primary" type="button">Sync</button>
           <button id="logoutSettingsButton" class="secondary" type="button">Log Out</button>
           <button id="resetButton" class="secondary" type="button">Clear Local App State</button>

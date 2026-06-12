@@ -647,7 +647,7 @@ function migrateDatabase() {
     );
     CREATE TABLE IF NOT EXISTS transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+      account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
       category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
       debt_id INTEGER REFERENCES debts(id) ON DELETE SET NULL,
       date TEXT NOT NULL,
@@ -714,6 +714,46 @@ function migrateDatabase() {
   if (columns.indexOf("debt_id") === -1) {
     state.db.run("ALTER TABLE transactions ADD COLUMN debt_id INTEGER REFERENCES debts(id) ON DELETE SET NULL");
   }
+  const transactionAccountColumn = all("PRAGMA table_info(transactions)").find(function (row) {
+    return row.name === "account_id";
+  });
+  if (transactionAccountColumn && Number(transactionAccountColumn.notnull || 0) === 1) {
+    state.db.run("PRAGMA foreign_keys = OFF");
+    state.db.run(`
+      CREATE TABLE transactions_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+        category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+        debt_id INTEGER REFERENCES debts(id) ON DELETE SET NULL,
+        date TEXT NOT NULL,
+        type TEXT NOT NULL CHECK (type IN ('income','expense')),
+        amount REAL NOT NULL CHECK (amount >= 0),
+        vendor TEXT NOT NULL DEFAULT '',
+        notes TEXT NOT NULL DEFAULT '',
+        recurring_transaction_id INTEGER,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        source TEXT NOT NULL DEFAULT 'desktop',
+        external_id TEXT
+      )
+    `);
+    state.db.run(`
+      INSERT INTO transactions_new(
+        id, account_id, category_id, debt_id, date, type, amount, vendor, notes,
+        recurring_transaction_id, created_at, updated_at, source, external_id
+      )
+      SELECT
+        id, account_id, category_id, debt_id, date, type, amount, vendor, notes,
+        recurring_transaction_id, created_at, updated_at, source, external_id
+      FROM transactions
+    `);
+    state.db.run("DROP TABLE transactions");
+    state.db.run("ALTER TABLE transactions_new RENAME TO transactions");
+    state.db.run("PRAGMA foreign_keys = ON");
+  }
+  state.db.run("CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date)");
+  state.db.run("CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id)");
+  state.db.run("CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id)");
   state.db.run(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_source_external
     ON transactions(source, external_id)
@@ -1111,6 +1151,10 @@ function renderSelectors() {
   noRecurringDebt.value = "";
   noRecurringDebt.textContent = "No Linked Debt";
   els.recDebt.appendChild(noRecurringDebt);
+  const noTransactionAccount = document.createElement("option");
+  noTransactionAccount.value = "";
+  noTransactionAccount.textContent = "No Account";
+  els.txAccount.appendChild(noTransactionAccount);
   accounts.forEach(function (account) {
     const label = account.name + " (" + displayText(account.type) + ")";
     const option = document.createElement("option");
@@ -1130,7 +1174,7 @@ function renderSelectors() {
     debtOption.textContent = label;
     els.debtAccount.appendChild(debtOption);
   });
-  els.txAccount.value = oldAccount || (accounts[0] ? String(accounts[0].id) : "");
+  els.txAccount.value = oldAccount;
   els.txTransferTo.value = oldTransferTo || (accounts[1] ? String(accounts[1].id) : (accounts[0] ? String(accounts[0].id) : ""));
   els.recAccount.value = oldRecurringAccount || (accounts[0] ? String(accounts[0].id) : "");
   els.debtAccount.value = oldDebtAccount || "";
@@ -1493,13 +1537,13 @@ function renderTransactions() {
   clearNode(els.transactionList);
   const search = "%" + String(els.transactionSearch.value || "").toLowerCase() + "%";
   const rows = all(`
-    SELECT t.*, a.name account, COALESCE(c.name, '') category, COALESCE(d.name, '') debt
+    SELECT t.*, COALESCE(a.name, 'No Account') account, COALESCE(c.name, '') category, COALESCE(d.name, '') debt
     FROM transactions t
-    JOIN accounts a ON a.id = t.account_id
+    LEFT JOIN accounts a ON a.id = t.account_id
     LEFT JOIN categories c ON c.id = t.category_id
     LEFT JOIN debts d ON d.id = t.debt_id
     WHERE substr(t.date, 1, 7) = ?
-      AND lower(t.vendor || ' ' || t.notes || ' ' || a.name || ' ' || COALESCE(c.name, '') || ' ' || COALESCE(d.name, '')) LIKE ?
+      AND lower(t.vendor || ' ' || t.notes || ' ' || COALESCE(a.name, 'No Account') || ' ' || COALESCE(c.name, '') || ' ' || COALESCE(d.name, '')) LIKE ?
     ORDER BY t.date DESC, t.id DESC
     LIMIT 250
   `, [state.month, search]);
@@ -1905,12 +1949,16 @@ async function saveTransaction(event) {
     await saveTransferFromTransaction();
     return;
   }
-  const accountId = Number(els.txAccount.value || 0);
+  const accountId = els.txAccount.value ? Number(els.txAccount.value) : null;
   const debtId = els.txDebt.value ? Number(els.txDebt.value) : null;
   const categoryId = els.txCategory.value ? Number(els.txCategory.value) : (debtId ? debtCategoryId() : null);
   const amount = Math.abs(numberValue(els.txAmount));
-  if (!accountId || amount <= 0) {
-    showStatus("Choose an account and enter an amount.", true);
+  if (amount <= 0) {
+    showStatus("Enter an amount.", true);
+    return;
+  }
+  if (accountId === null && !categoryId) {
+    showStatus("Choose a category for budget-only transactions.", true);
     return;
   }
   if (debtId && els.txType.value !== "expense") {
@@ -2567,9 +2615,9 @@ function clearDebtEditMode() {
 
 function exportCsv() {
   const rows = all(`
-    SELECT t.date, a.name account, COALESCE(c.name, '') category, COALESCE(d.name, '') debt, t.type, t.amount, t.vendor, t.notes
+    SELECT t.date, COALESCE(a.name, 'No Account') account, COALESCE(c.name, '') category, COALESCE(d.name, '') debt, t.type, t.amount, t.vendor, t.notes
     FROM transactions t
-    JOIN accounts a ON a.id = t.account_id
+    LEFT JOIN accounts a ON a.id = t.account_id
     LEFT JOIN categories c ON c.id = t.category_id
     LEFT JOIN debts d ON d.id = t.debt_id
     ORDER BY t.date DESC, t.id DESC
@@ -2642,11 +2690,11 @@ async function importCsvFile(file) {
       raw[key] = cells[index] || "";
     });
     const accountName = String(raw.account || "").trim();
-    if (!accountName) {
-      return;
+    let account = null;
+    if (accountName && accountName.toLowerCase() !== "no account") {
+      account = one("SELECT * FROM accounts WHERE lower(name) = lower(?)", [accountName]);
     }
-    let account = one("SELECT * FROM accounts WHERE lower(name) = lower(?)", [accountName]);
-    if (!account) {
+    if (accountName && accountName.toLowerCase() !== "no account" && !account) {
       run("INSERT INTO accounts(name, type, opening_balance) VALUES (?, 'Chequing', 0)", [accountName]);
       account = one("SELECT * FROM accounts WHERE id = last_insert_rowid()");
     }
@@ -2669,7 +2717,7 @@ async function importCsvFile(file) {
     run(
       "INSERT INTO transactions(account_id, category_id, debt_id, date, type, amount, vendor, notes, source, external_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'web-csv', ?)",
       [
-        account.id,
+        account ? account.id : null,
         category ? category.id : null,
         debt ? debt.id : null,
         raw.date || today(),
