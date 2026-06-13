@@ -2,6 +2,7 @@ const DB_FILENAME = "budget.sqlite3";
 const SUPABASE_URL = "https://uhzgrdivbkhqfxgwdzsd.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_KPhJfS-UNgyV5C3v-RVO_A_e0SP96Iy";
 const SUPABASE_BUCKET = "budget-files";
+const AUTH_REDIRECT_URL = "https://josephspratt-3d.github.io/Christendom-Budgeting/";
 const TAB_ORDER_STORAGE_KEY = "christendomBudgetTabOrder";
 const DEFAULT_TABS = [
   { id: "add", label: "Add" },
@@ -512,7 +513,13 @@ async function signUp() {
     return;
   }
   showStatus("Creating account...");
-  const result = await state.supabase.auth.signUp({ email: email, password: password });
+  const result = await state.supabase.auth.signUp({
+    email: email,
+    password: password,
+    options: {
+      emailRedirectTo: AUTH_REDIRECT_URL,
+    },
+  });
   if (result.error) {
     throw result.error;
   }
