@@ -1837,12 +1837,41 @@ function renderAccounts() {
 function renderCategories() {
   clearNode(els.categoriesList);
   const rows = all("SELECT * FROM categories ORDER BY kind, name");
-  rows.forEach(function (category) {
+  if (!rows.length) {
+    els.categoriesList.textContent = "No categories yet.";
+    return;
+  }
+  const incomeRows = rows.filter(function (category) { return category.kind === "income"; });
+  const expenseRows = rows.filter(function (category) { return category.kind === "expense"; });
+  if (incomeRows.length) {
+    const incomeHeader = document.createElement("h3");
+    incomeHeader.textContent = "Income";
+    incomeHeader.className = "inline-section-title";
+    els.categoriesList.appendChild(incomeHeader);
+  }
+  incomeRows.forEach(function (category) {
     addRow(
       els.categoriesList,
       category.name,
       money(category.monthly_limit),
-      displayText(category.kind) + " - Default budget",
+      "Default budget",
+      "",
+      null,
+      { label: "Edit " + category.name, action: "edit-category", id: category.id },
+    );
+  });
+  if (expenseRows.length) {
+    const expenseHeader = document.createElement("h3");
+    expenseHeader.textContent = "Expenses";
+    expenseHeader.className = "inline-section-title";
+    els.categoriesList.appendChild(expenseHeader);
+  }
+  expenseRows.forEach(function (category) {
+    addRow(
+      els.categoriesList,
+      category.name,
+      money(category.monthly_limit),
+      "Default budget",
       "",
       null,
       { label: "Edit " + category.name, action: "edit-category", id: category.id },
