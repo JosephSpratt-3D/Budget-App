@@ -651,7 +651,7 @@ textarea:focus {
   }
 
   .report-filter-row {
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr;
   }
 
   .report-summary-grid {

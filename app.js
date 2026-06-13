@@ -171,7 +171,6 @@ const els = {
   reportsList: document.getElementById("reportsList"),
   reportMonthInput: document.getElementById("reportMonthInput"),
   reportViewFilter: document.getElementById("reportViewFilter"),
-  reportRangeFilter: document.getElementById("reportRangeFilter"),
   openBudgetButton: document.getElementById("openBudgetButton"),
   saveDbButton: document.getElementById("saveDbButton"),
   logoutButton: document.getElementById("logoutButton"),
@@ -1847,9 +1846,6 @@ function renderReports() {
   if (view === "all" || view === "summary") {
     renderReportSummary();
   }
-  if (view === "all" || view === "cash-flow") {
-    renderMonthlyTrendReport();
-  }
   if (view === "all" || view === "budget") {
     renderBudgetPerformanceReport();
   }
@@ -1914,39 +1910,6 @@ function addReportMetric(container, title, value, detail, valueClass) {
   item.appendChild(amount);
   item.appendChild(sub);
   container.appendChild(item);
-}
-
-function renderMonthlyTrendReport() {
-  const range = els.reportRangeFilter.value || "6";
-  const limitClause = range === "all" ? "" : "LIMIT " + Number(range || 6);
-  const rows = all(`
-    SELECT substr(date, 1, 7) month,
-      COALESCE(SUM(CASE WHEN type='income' THEN amount ELSE 0 END), 0) income,
-      COALESCE(SUM(CASE WHEN type='expense' THEN amount ELSE 0 END), 0) spending
-    FROM transactions
-    WHERE COALESCE(source, '') <> 'transfer'
-    GROUP BY month
-    ORDER BY month DESC
-    ${limitClause}
-  `);
-  const list = addReportSection("Monthly Cash Flow");
-  if (!rows.length) {
-    list.textContent = "No report data yet.";
-    return;
-  }
-  rows.forEach(function (row) {
-    const income = Number(row.income || 0);
-    const spending = Number(row.spending || 0);
-    const net = income - spending;
-    const savingsRate = income ? (net / income) * 100 : 0;
-    addRow(
-      list,
-      row.month,
-      money(net),
-      "Income " + money(income) + " - Spending " + money(spending) + " - Savings rate " + savingsRate.toFixed(1) + "%",
-      net < 0 ? "negative" : "positive",
-    );
-  });
 }
 
 function renderBudgetPerformanceReport() {
@@ -2950,7 +2913,6 @@ function bindEvents() {
     setBudgetMonth(els.reportMonthInput.value).catch(function (error) { showStatus(error.message, true); });
   });
   els.reportViewFilter.addEventListener("change", renderReports);
-  els.reportRangeFilter.addEventListener("change", renderReports);
   els.transactionMonthInput.addEventListener("change", function () {
     setBudgetMonth(els.transactionMonthInput.value).catch(function (error) { showStatus(error.message, true); });
   });
