@@ -67,7 +67,6 @@ const els = {
   monthInput: document.getElementById("monthInput"),
   incomeValue: document.getElementById("incomeValue"),
   spendingValue: document.getElementById("spendingValue"),
-  savingsValue: document.getElementById("savingsValue"),
   budgetValue: document.getElementById("budgetValue"),
   netWorthValue: document.getElementById("netWorthValue"),
   accountBalanceList: document.getElementById("accountBalanceList"),
@@ -1527,16 +1526,13 @@ function addRow(container, title, amount, detail, amountClass, actions, rowActio
 
 function renderDashboard() {
   const data = dashboardData();
-  const net = data.income - data.spending;
   const remaining = data.planned - data.spending;
   els.incomeValue.textContent = money(data.income);
   els.spendingValue.textContent = money(data.spending);
-  els.savingsValue.textContent = money(net);
   els.budgetValue.textContent = money(remaining);
   els.netWorthValue.textContent = money(data.netWorth);
   els.incomeValue.className = data.income > 0 ? "positive" : "";
   els.spendingValue.className = data.spending > data.planned ? "negative" : "positive";
-  els.savingsValue.className = net < 0 ? "negative" : "positive";
   els.budgetValue.className = remaining < 0 ? "negative" : "positive";
   clearNode(els.accountBalanceList);
   if (!data.accounts.length) {
