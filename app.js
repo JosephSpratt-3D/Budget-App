@@ -1756,6 +1756,9 @@ function renderTransactions() {
       return false;
     }
     return true;
+  }).sort(function (a, b) {
+    const dateCompare = String(b.date || "").localeCompare(String(a.date || ""));
+    return dateCompare || Number(b.id || 0) - Number(a.id || 0);
   }).slice(0, 250);
   if (!rows.length) {
     els.transactionList.textContent = "No transactions found for " + state.month + ".";
@@ -1864,7 +1867,7 @@ function renderBudgets() {
     LEFT JOIN transactions t ON t.category_id = b.category_id AND substr(t.date, 1, 7) = b.month AND COALESCE(t.source, '') <> 'transfer'
     WHERE b.month = ?
     GROUP BY b.id
-    ORDER BY c.kind DESC, c.name
+    ORDER BY c.kind DESC, b.planned DESC, c.name
   `, [state.month]);
   if (!rows.length) {
     els.budgetsList.textContent = "Set expected income, then allocate every dollar to categories.";
@@ -1878,11 +1881,13 @@ function renderBudgets() {
     els.budgetsList.appendChild(incomeHeader);
   }
   incomeRows.forEach(function (budget) {
+    const planned = Number(budget.planned || 0);
+    const share = summary.expectedIncome ? (planned / summary.expectedIncome) * 100 : 0;
     addRow(
       els.budgetsList,
       budget.category_name,
       money(budget.planned),
-      "Expected for " + state.month,
+      pct(share) + " of expected income for " + state.month,
       "positive",
       null,
       { label: "Edit " + budget.category_name, action: "edit-expected-income", id: budget.id },
@@ -1898,11 +1903,12 @@ function renderBudgets() {
     const remaining = Number(budget.planned || 0) - Number(budget.actual || 0);
     const actual = Number(budget.actual || 0);
     const planned = Number(budget.planned || 0);
+    const share = summary.allocated ? (planned / summary.allocated) * 100 : 0;
     addRow(
       els.budgetsList,
       budget.category_name,
       money(actual),
-      "Planned " + money(planned) + " - Remaining " + money(remaining) + (budget.carry_forward ? " - Carry forward" : ""),
+      "Planned " + money(planned) + " - " + pct(share) + " of allocated budget - Remaining " + money(remaining) + (budget.carry_forward ? " - Carry forward" : ""),
       actual > planned ? "negative" : "positive",
       null,
       { label: "Edit " + budget.category_name, action: "edit-budget", id: budget.id },
