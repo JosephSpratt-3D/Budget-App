@@ -2167,6 +2167,30 @@ function renderAccountReport() {
     list.textContent = "No accounts yet.";
     return;
   }
+  const totals = rows.reduce(function (summary, account) {
+    const balance = Number(account.current_balance || 0);
+    if (accountTypeKey(account.type) === "credit card") {
+      summary.creditCards += balance;
+    } else {
+      summary.withoutCreditCards += balance;
+    }
+    return summary;
+  }, { withoutCreditCards: 0, creditCards: 0 });
+  const withCreditCardsSubtracted = totals.withoutCreditCards - totals.creditCards;
+  addRow(
+    list,
+    "Account total without credit cards",
+    money(totals.withoutCreditCards),
+    "Credit card accounts excluded",
+    totals.withoutCreditCards < 0 ? "negative" : "positive",
+  );
+  addRow(
+    list,
+    "Account total with credit cards subtracted",
+    money(withCreditCardsSubtracted),
+    "Credit card balances subtract " + money(totals.creditCards),
+    withCreditCardsSubtracted < 0 ? "negative" : "positive",
+  );
   rows.forEach(function (account) {
     const balance = Number(account.current_balance || 0);
     addRow(
