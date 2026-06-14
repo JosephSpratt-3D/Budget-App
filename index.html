@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Christendom Budgeting</title>
-    <link rel="stylesheet" href="style.css?v=20260613-8">
+    <link rel="stylesheet" href="style.css?v=20260614-4">
   </head>
   <body>
     <main class="app-shell">
@@ -108,6 +108,14 @@
             <article class="stat"><span>Monthly Income</span><strong id="incomeValue">$0.00</strong></article>
             <article class="stat"><span>Monthly Spending</span><strong id="spendingValue">$0.00</strong></article>
             <article class="stat"><span>Budget Remaining</span><strong id="budgetValue">$0.00</strong></article>
+            <article class="stat account-total-stat">
+              <span>Account Total</span>
+              <strong id="accountTotalValue">$0.00</strong>
+              <select id="accountTotalMode" aria-label="Account total mode">
+                <option value="subtract-credit">Subtract Credit Cards</option>
+                <option value="exclude-credit">Exclude Credit Cards</option>
+              </select>
+            </article>
           </div>
         </section>
         <section class="panel"><h2>Account Balances</h2><div id="accountBalanceList" class="list"></div></section>
@@ -305,6 +313,6 @@
     </main>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
-    <script src="app.js?v=20260614-2"></script>
+    <script src="app.js?v=20260614-4"></script>
   </body>
 </html>

@@ -477,6 +477,17 @@ textarea:focus {
   word-break: break-word;
 }
 
+.account-total-stat {
+  gap: 7px;
+}
+
+.account-total-stat select {
+  min-height: 34px;
+  padding: 6px 8px;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
 .big-number {
   display: block;
   max-width: 100%;

@@ -4,6 +4,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_KPhJfS-UNgyV5C3v-RVO_A_e0SP96Iy";
 const SUPABASE_BUCKET = "budget-files";
 const AUTH_REDIRECT_URL = "https://josephspratt-3d.github.io/Christendom-Budgeting/";
 const TAB_ORDER_STORAGE_KEY = "christendomBudgetTabOrder";
+const ACCOUNT_TOTAL_MODE_STORAGE_KEY = "christendomBudgetAccountTotalMode";
 const DEFAULT_TABS = [
   { id: "add", label: "Add" },
   { id: "dashboard", label: "Dashboard" },
@@ -76,6 +77,8 @@ const els = {
   incomeValue: document.getElementById("incomeValue"),
   spendingValue: document.getElementById("spendingValue"),
   budgetValue: document.getElementById("budgetValue"),
+  accountTotalMode: document.getElementById("accountTotalMode"),
+  accountTotalValue: document.getElementById("accountTotalValue"),
   netWorthValue: document.getElementById("netWorthValue"),
   accountBalanceList: document.getElementById("accountBalanceList"),
   categorySpendList: document.getElementById("categorySpendList"),
@@ -283,6 +286,15 @@ function getTabOrder() {
 
 function saveTabOrder(order) {
   window.localStorage.setItem(TAB_ORDER_STORAGE_KEY, JSON.stringify(order));
+}
+
+function getAccountTotalMode() {
+  const saved = window.localStorage.getItem(ACCOUNT_TOTAL_MODE_STORAGE_KEY);
+  return saved === "exclude-credit" ? saved : "subtract-credit";
+}
+
+function saveAccountTotalMode(mode) {
+  window.localStorage.setItem(ACCOUNT_TOTAL_MODE_STORAGE_KEY, mode === "exclude-credit" ? mode : "subtract-credit");
 }
 
 function applyTabOrder() {
@@ -1210,6 +1222,14 @@ function dashboardData() {
     "planned",
   ));
   const accounts = accountsWithBalances();
+  const accountTotalMode = getAccountTotalMode();
+  const accountTotal = accounts.reduce(function (sum, account) {
+    const balance = Number(account.current_balance || 0);
+    if (accountTypeKey(account.type) !== "credit card") {
+      return sum + balance;
+    }
+    return accountTotalMode === "exclude-credit" ? sum : sum - balance;
+  }, 0);
   const debtTotal = Number(scalar("SELECT COALESCE(SUM(balance), 0) total FROM debts WHERE include_in_net_worth = 1", [], "total"));
   const netWorth = accounts.reduce(function (sum, account) {
     if (!account.include_in_net_worth) {
@@ -1223,6 +1243,8 @@ function dashboardData() {
     spending: Number(totals.spending || 0),
     planned,
     expectedIncome,
+    accountTotalMode,
+    accountTotal,
     netWorth,
     accounts,
   };
@@ -1644,10 +1666,13 @@ function renderDashboard() {
   els.incomeValue.textContent = money(data.income);
   els.spendingValue.textContent = money(data.spending);
   els.budgetValue.textContent = money(remaining);
+  els.accountTotalMode.value = data.accountTotalMode;
+  els.accountTotalValue.textContent = money(data.accountTotal);
   els.netWorthValue.textContent = money(data.netWorth);
   els.incomeValue.className = data.income > 0 ? "positive" : "";
   els.spendingValue.className = data.spending > data.planned ? "negative" : "positive";
   els.budgetValue.className = remaining < 0 ? "negative" : "positive";
+  els.accountTotalValue.className = data.accountTotal < 0 ? "negative" : "positive";
   clearNode(els.accountBalanceList);
   if (!data.accounts.length) {
     els.accountBalanceList.textContent = "Add an account to start.";
@@ -3073,6 +3098,10 @@ function bindEvents() {
     setBudgetMonth(els.reportMonthInput.value).catch(function (error) { showStatus(error.message, true); });
   });
   els.reportViewFilter.addEventListener("change", renderReports);
+  els.accountTotalMode.addEventListener("change", function () {
+    saveAccountTotalMode(els.accountTotalMode.value);
+    renderDashboard();
+  });
   els.transactionMonthInput.addEventListener("change", function () {
     setBudgetMonth(els.transactionMonthInput.value).catch(function (error) { showStatus(error.message, true); });
   });
