@@ -166,11 +166,11 @@ const els = {
   budgetsList: document.getElementById("budgetsList"),
   debtForm: document.getElementById("debtForm"),
   debtName: document.getElementById("debtName"),
-  debtAccount: document.getElementById("debtAccount"),
   debtBalance: document.getElementById("debtBalance"),
   debtRate: document.getElementById("debtRate"),
   debtMin: document.getElementById("debtMin"),
   debtExtra: document.getElementById("debtExtra"),
+  debtNetWorth: document.getElementById("debtNetWorth"),
   debtSubmitButton: document.getElementById("debtSubmitButton"),
   cancelDebtEditButton: document.getElementById("cancelDebtEditButton"),
   deleteDebtEditButton: document.getElementById("deleteDebtEditButton"),
@@ -827,6 +827,7 @@ function migrateDatabase() {
       interest_rate REAL NOT NULL DEFAULT 0,
       minimum_payment REAL NOT NULL DEFAULT 0,
       extra_payment REAL NOT NULL DEFAULT 0,
+      include_in_net_worth INTEGER NOT NULL DEFAULT 1,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS settings (
@@ -905,6 +906,12 @@ function migrateDatabase() {
   }
   state.db.run("CREATE INDEX IF NOT EXISTS idx_recurring_next_date ON recurring_transactions(next_date)");
   state.db.run("CREATE INDEX IF NOT EXISTS idx_recurring_debt ON recurring_transactions(debt_id)");
+  const debtColumns = all("PRAGMA table_info(debts)").map(function (row) {
+    return row.name;
+  });
+  if (debtColumns.indexOf("include_in_net_worth") === -1) {
+    state.db.run("ALTER TABLE debts ADD COLUMN include_in_net_worth INTEGER NOT NULL DEFAULT 1");
+  }
   if (Number(scalar("SELECT COUNT(*) count FROM categories", [], "count")) === 0) {
     DEFAULT_CATEGORIES.forEach(function (category) {
       state.db.run(
@@ -1203,7 +1210,7 @@ function dashboardData() {
     "planned",
   ));
   const accounts = accountsWithBalances();
-  const debtTotal = Number(scalar("SELECT COALESCE(SUM(balance), 0) total FROM debts", [], "total"));
+  const debtTotal = Number(scalar("SELECT COALESCE(SUM(balance), 0) total FROM debts WHERE include_in_net_worth = 1", [], "total"));
   const netWorth = accounts.reduce(function (sum, account) {
     if (!account.include_in_net_worth) {
       return sum;
@@ -1265,7 +1272,6 @@ function renderSelectors() {
   const debts = all("SELECT * FROM debts ORDER BY name");
   const oldAccount = els.txAccount.value;
   const oldTransferTo = els.txTransferTo.value;
-  const oldDebtAccount = els.debtAccount.value;
   const oldTransactionDebt = els.txDebt.value;
   const oldFilterAccount = els.transactionAccountFilter.value;
   const oldFilterCategory = els.transactionCategoryFilter.value;
@@ -1276,7 +1282,6 @@ function renderSelectors() {
   clearNode(els.txAccount);
   clearNode(els.txTransferTo);
   clearNode(els.recAccount);
-  clearNode(els.debtAccount);
   clearNode(els.txDebt);
   clearNode(els.recDebt);
   clearNode(els.transactionAccountFilter);
@@ -1288,10 +1293,6 @@ function renderSelectors() {
   addOption(els.transactionCategoryFilter, "none", "No Category");
   addOption(els.transactionDebtFilter, "all", "All Debts");
   addOption(els.transactionDebtFilter, "none", "No Debt");
-  const noDebtAccount = document.createElement("option");
-  noDebtAccount.value = "";
-  noDebtAccount.textContent = "No Linked Account";
-  els.debtAccount.appendChild(noDebtAccount);
   const noTransactionDebt = document.createElement("option");
   noTransactionDebt.value = "";
   noTransactionDebt.textContent = "No Linked Debt";
@@ -1318,16 +1319,11 @@ function renderSelectors() {
     recurringOption.value = account.id;
     recurringOption.textContent = label;
     els.recAccount.appendChild(recurringOption);
-    const debtOption = document.createElement("option");
-    debtOption.value = account.id;
-    debtOption.textContent = label;
-    els.debtAccount.appendChild(debtOption);
     addOption(els.transactionAccountFilter, String(account.id), label);
   });
   els.txAccount.value = oldAccount;
   els.txTransferTo.value = oldTransferTo || (accounts[1] ? String(accounts[1].id) : (accounts[0] ? String(accounts[0].id) : ""));
   els.recAccount.value = oldRecurringAccount || (accounts[0] ? String(accounts[0].id) : "");
-  els.debtAccount.value = oldDebtAccount || "";
   debts.forEach(function (debt) {
     const option = document.createElement("option");
     option.value = debt.id;
@@ -1965,9 +1961,8 @@ function monthsUntilPayoff(balance, annualRate, payment) {
 function renderDebts() {
   clearNode(els.debtsList);
   const rows = all(`
-    SELECT d.*, COALESCE(a.name, '') account
+    SELECT d.*
     FROM debts d
-    LEFT JOIN accounts a ON a.id = d.account_id
     ORDER BY d.balance DESC
   `);
   if (!rows.length) {
@@ -1977,11 +1972,12 @@ function renderDebts() {
     const payment = Number(debt.minimum_payment || 0) + Number(debt.extra_payment || 0);
     const payoff = monthsUntilPayoff(Number(debt.balance || 0), Number(debt.interest_rate || 0), payment);
     const payoffText = payoff === null ? "No projection" : Math.floor(payoff / 12) + "y " + (payoff % 12) + "m";
+    const netWorthText = Number(debt.include_in_net_worth || 0) === 1 ? "Included in net worth" : "Excluded from net worth";
     addRow(
       els.debtsList,
       debt.name,
       money(debt.balance),
-      [debt.account, Number(debt.interest_rate || 0) + "%", "Payment " + money(payment), payoffText].filter(Boolean).join(" - "),
+      [Number(debt.interest_rate || 0) + "%", "Payment " + money(payment), payoffText, netWorthText].filter(Boolean).join(" - "),
       "negative",
       null,
       { label: "Edit " + debt.name, action: "edit-debt", id: debt.id },
@@ -2042,7 +2038,7 @@ function renderReportSummary() {
   addReportMetric(list, "Spending", money(summary.spending), summary.planned ? "Budget " + money(summary.planned) : "No budget set", summary.spending > summary.planned ? "negative" : "positive");
   addReportMetric(list, "Net Savings", money(net), "Savings rate " + pct(savingsRate), net < 0 ? "negative" : "positive");
   addReportMetric(list, "Budget Remaining", money(budgetRemaining), budgetRemaining < 0 ? "Over budget" : "Under budget", budgetRemaining < 0 ? "negative" : "positive");
-  addReportMetric(list, "Net Worth", money(summary.netWorth), "Accounts minus tracked debts", summary.netWorth < 0 ? "negative" : "positive");
+  addReportMetric(list, "Net Worth", money(summary.netWorth), "Accounts minus included debts", summary.netWorth < 0 ? "negative" : "positive");
 }
 
 function addReportMetric(container, title, value, detail, valueClass) {
@@ -2166,7 +2162,7 @@ function renderDebtReport() {
     return;
   }
   const total = debts.reduce(function (sum, debt) { return sum + Number(debt.balance || 0); }, 0);
-  addRow(list, "Total tracked debt", money(total), debts.length + " debt account(s)", "negative");
+  addRow(list, "Total tracked debt", money(total), debts.length + " debt(s)", "negative");
   debts.forEach(function (debt) {
     const payment = Number(debt.minimum_payment || 0) + Number(debt.extra_payment || 0);
     const payoff = monthsUntilPayoff(Number(debt.balance || 0), Number(debt.interest_rate || 0), payment);
@@ -2814,17 +2810,18 @@ async function saveDebt(event) {
     return;
   }
   const values = [
-    els.debtAccount.value ? Number(els.debtAccount.value) : null,
+    null,
     name,
     numberValue(els.debtBalance),
     numberValue(els.debtRate),
     numberValue(els.debtMin),
     numberValue(els.debtExtra),
+    els.debtNetWorth.checked ? 1 : 0,
   ];
   if (state.editingDebtId) {
     run(
       `UPDATE debts
-       SET account_id = ?, name = ?, balance = ?, interest_rate = ?, minimum_payment = ?, extra_payment = ?, updated_at = CURRENT_TIMESTAMP
+       SET account_id = ?, name = ?, balance = ?, interest_rate = ?, minimum_payment = ?, extra_payment = ?, include_in_net_worth = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       values.concat([state.editingDebtId]),
     );
@@ -2834,11 +2831,12 @@ async function saveDebt(event) {
     return;
   }
   run(
-    "INSERT INTO debts(account_id, name, balance, interest_rate, minimum_payment, extra_payment) VALUES (?, ?, ?, ?, ?, ?)",
+    "INSERT INTO debts(account_id, name, balance, interest_rate, minimum_payment, extra_payment, include_in_net_worth) VALUES (?, ?, ?, ?, ?, ?, ?)",
     values,
   );
   syncDebtBudget(state.month);
   els.debtForm.reset();
+  els.debtNetWorth.checked = true;
   await saveAfterChange("Debt added. Monthly debt budget updated.");
 }
 
@@ -2849,11 +2847,11 @@ function editDebt(id) {
   }
   state.editingDebtId = Number(id);
   els.debtName.value = debt.name || "";
-  els.debtAccount.value = debt.account_id || "";
   els.debtBalance.value = debt.balance || "";
   els.debtRate.value = debt.interest_rate || "";
   els.debtMin.value = debt.minimum_payment || "";
   els.debtExtra.value = debt.extra_payment || "";
+  els.debtNetWorth.checked = Number(debt.include_in_net_worth || 0) === 1;
   els.debtSubmitButton.textContent = "Update Debt";
   els.cancelDebtEditButton.classList.remove("hidden");
   els.deleteDebtEditButton.classList.remove("hidden");
@@ -2866,6 +2864,7 @@ function editDebt(id) {
 function clearDebtEditMode() {
   state.editingDebtId = null;
   els.debtForm.reset();
+  els.debtNetWorth.checked = true;
   els.debtSubmitButton.textContent = "Add Debt";
   els.cancelDebtEditButton.classList.add("hidden");
   els.deleteDebtEditButton.classList.add("hidden");

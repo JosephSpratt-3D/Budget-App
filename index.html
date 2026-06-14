@@ -233,11 +233,11 @@
           <h2>Debts</h2>
           <form id="debtForm" class="form-grid">
             <label>Name<input id="debtName" required></label>
-            <label>Account<select id="debtAccount"></select></label>
             <label>Balance<input id="debtBalance" inputmode="decimal" placeholder="0.00"></label>
             <label>Interest %<input id="debtRate" inputmode="decimal" placeholder="0"></label>
             <label>Minimum Payment<input id="debtMin" inputmode="decimal" placeholder="0.00"></label>
             <label>Extra Payment<input id="debtExtra" inputmode="decimal" placeholder="0.00"></label>
+            <label class="checkbox-row"><input id="debtNetWorth" type="checkbox" checked>Include In Net Worth</label>
             <button id="debtSubmitButton" class="primary" type="submit">Add Debt</button>
             <button id="cancelDebtEditButton" class="secondary hidden" type="button">Cancel Edit</button>
             <button id="deleteDebtEditButton" class="danger hidden" type="button">Delete Debt</button>
@@ -305,6 +305,6 @@
     </main>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
-    <script src="app.js?v=20260613-12"></script>
+    <script src="app.js?v=20260614-2"></script>
   </body>
 </html>
